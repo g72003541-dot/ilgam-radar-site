@@ -1,0 +1,578 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>일감레이더 · 운영자 콘솔</title>
+<!--
+  ★ 운영자 콘솔 (2026-08-14)
+
+  ## 무엇을 보는 물건인가
+  「사용자가 어디서 이탈하고, 어디서 어려워하는가」 하나다.
+
+  ## ⛔ 이 페이지가 지키는 선
+
+  | | |
+  |---|---|
+  | 문자 본문·구인글 원문·구인자 번호 | **부를 함수가 없다.** 서버가 안 준다 (절대 규칙 2) |
+  | `service_role` 키 | **어디에도 없다.** 앱과 같은 anon 키로 로그인해서 본다 |
+  | 운영자 판정 | 서버의 `private.is_operator()`. 이 파일은 판정에 관여하지 않는다 |
+
+  즉 이 HTML 을 통째로 남에게 줘도 그 사람은 아무것도 못 본다 — 로그인이 막고, RLS 가 막고,
+  함수가 첫 줄에서 막는다. **화면이 지키는 게 아니라 서버가 지킨다.**
+
+  ## 어떻게 여나
+  그냥 이 파일을 브라우저로 연다. 서버도, 빌드도, 배포도 없다 (운영비 0원).
+-->
+<script src="config.js" onerror="window.__noConfig = true"></script>
+<style>
+  /*
+   * 앱과 같은 말을 쓴다 — 숫자는 tabular-nums, 라이트·다크 둘 다, 고정 px 최소화.
+   * 콘솔이라고 앱과 다른 색을 쓰면 「같은 제품」이라는 감각이 깨진다.
+   */
+  :root {
+    color-scheme: light dark;
+    --bg: #f6f7f8;  --card: #fff;      --line: #e3e6e8;
+    --ink: #16181a; --mut: #6b7176;    --go: #2f7d32;
+    --flag: #c62828; --wait: #b26a00;  --accent: #1d4ed8;
+    --bar: #dfe3e6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #121416; --card: #1b1e21; --line: #2c3136;
+      --ink: #e9ecee; --mut: #9aa1a7; --go: #7dc47f;
+      --flag: #ef7d7d; --wait: #e0a03a; --accent: #8ab0ff;
+      --bar: #2c3136;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: Pretendard, -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
+    font-size: 15px; line-height: 1.5;
+    font-variant-numeric: tabular-nums;
+  }
+  header {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 18px 22px; border-bottom: 1px solid var(--line); background: var(--card);
+    position: sticky; top: 0; z-index: 10;
+  }
+  h1 { font-size: 18px; margin: 0; letter-spacing: -.02em; }
+  .spacer { flex: 1; }
+  main { padding: 22px; max-width: 1240px; margin: 0 auto; }
+  .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px;
+  }
+  .card h2 { font-size: 14px; margin: 0 0 4px; letter-spacing: -.01em; }
+  .card .why { font-size: 12.5px; color: var(--mut); margin: 0 0 14px; }
+  button {
+    font: inherit; font-size: 14px; padding: 8px 14px; border-radius: 9px;
+    border: 1px solid var(--line); background: var(--card); color: var(--ink); cursor: pointer;
+  }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button:disabled { opacity: .5; cursor: default; }
+  input {
+    font: inherit; font-size: 14px; padding: 9px 12px; border-radius: 9px;
+    border: 1px solid var(--line); background: var(--bg); color: var(--ink); width: 100%;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); }
+  th { color: var(--mut); font-weight: 600; font-size: 12px; }
+  td.n, th.n { text-align: right; }
+  .kpis { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); }
+  .kpi { border: 1px solid var(--line); border-radius: 11px; padding: 12px 14px; }
+  .kpi b { display: block; font-size: 26px; letter-spacing: -.03em; }
+  .kpi span { font-size: 12px; color: var(--mut); }
+  /* 깔때기 — 막대 하나가 한 단계 */
+  .fun { display: grid; grid-template-columns: 92px 1fr 62px; gap: 8px; align-items: center;
+         margin-bottom: 7px; font-size: 13px; }
+  .track { background: var(--bar); border-radius: 6px; height: 22px; position: relative; }
+  .fill { background: var(--go); height: 100%; border-radius: 6px; min-width: 2px; }
+  .lost { color: var(--flag); font-size: 12px; }
+  .muted { color: var(--mut); }
+  .rows { max-height: 460px; overflow: auto; }
+  tr.pick { cursor: pointer; }
+  tr.pick:hover { background: var(--bg); }
+  tr.on { background: var(--bg); outline: 1px solid var(--accent); }
+  .pill { font-size: 11.5px; padding: 2px 7px; border-radius: 99px; border: 1px solid var(--line); }
+  .pill.bad { color: var(--flag); border-color: currentColor; }
+  .pill.ok { color: var(--go); border-color: currentColor; }
+  /* 여정 — 큰 간격이 「막힌 자리」 */
+  .step { display: grid; grid-template-columns: 34px 1fr 74px; gap: 8px; padding: 5px 0;
+          border-bottom: 1px dashed var(--line); font-size: 13.5px; }
+  .step .gap { text-align: right; color: var(--mut); font-size: 12px; }
+  .step.slow { background: color-mix(in srgb, var(--wait) 12%, transparent); border-radius: 6px; }
+  .step.slow .gap { color: var(--wait); font-weight: 700; }
+  .center { max-width: 380px; margin: 12vh auto; }
+  .err { color: var(--flag); font-size: 13px; min-height: 18px; }
+  .stack > * + * { margin-top: 10px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>일감레이더 · 운영자 콘솔</h1>
+  <span class="muted" id="who"></span>
+  <span class="spacer"></span>
+  <button id="reload">새로고침</button>
+  <button id="out">로그아웃</button>
+</header>
+
+<!-- ── 로그인 ─────────────────────────────────────────────────────────────
+     앱과 **같은 계정**으로 들어온다. 콘솔 전용 비밀번호를 따로 만들지 않는다 —
+     그런 건 관리가 안 되고, 결국 메모장에 적히게 된다.                        -->
+<main id="gate" hidden>
+  <div class="card center stack">
+    <h2>운영자 로그인</h2>
+    <p class="why">가입한 이메일로 6자리 코드를 보냅니다.</p>
+    <input id="email" type="email" placeholder="g72003541@gmail.com" autocomplete="email">
+    <input id="code" type="text" inputmode="numeric" placeholder="받은 6자리 코드" hidden>
+    <button class="primary" id="go" style="width:100%">코드 받기</button>
+    <div class="err" id="gateErr"></div>
+  </div>
+</main>
+
+<!-- ── 설정이 없을 때 (config.js 를 아직 안 만든 기기) ───────────────────── -->
+<main id="setup" hidden>
+  <div class="card center stack">
+    <h2>서버 주소를 알려주세요</h2>
+    <p class="why">
+      <code>admin/config.js</code> 가 없습니다. 한 번만 넣으면 이 브라우저가 기억합니다.
+      <br>anon 키는 APK 에도 들어가는 <b>공개 키</b>입니다 — 비밀이 아닙니다.
+    </p>
+    <input id="cfgUrl" placeholder="https://xxxx.supabase.co">
+    <input id="cfgKey" placeholder="anon key (eyJ… 로 시작)">
+    <button class="primary" id="cfgSave" style="width:100%">저장</button>
+    <div class="err" id="cfgErr"></div>
+  </div>
+</main>
+
+<main id="app" hidden>
+  <div id="banner" class="card" hidden
+       style="border-color:var(--flag); color:var(--flag); margin-bottom:16px;"></div>
+  <div class="grid">
+
+    <div class="card" style="grid-column: 1 / -1;">
+      <h2>지금</h2>
+      <p class="why">
+        가입자보다 <b>발송을 켠 사람</b>이 진짜 숫자다 — 이 앱에서 「쓰고 있다」는
+        열어봤다가 아니라 그림자 모드를 껐다는 뜻이다.
+      </p>
+      <div class="kpis" id="kpis"></div>
+    </div>
+
+    <div class="card">
+      <h2>온보딩 — 어디서 사라지나</h2>
+      <p class="why">앞 단계보다 뚝 떨어지는 줄이 고쳐야 할 화면이다.</p>
+      <div id="funnel"></div>
+    </div>
+
+    <div class="card">
+      <h2>권한 — 눌렀는데 못 켠 사람</h2>
+      <p class="why">
+        이 앱은 권한이 없으면 아무것도 못 한다. <b>눌렀다</b> 대비 <b>켜졌다</b>가 낮으면
+        그건 설명 문구의 문제다.
+      </p>
+      <table id="perm"></table>
+    </div>
+
+    <div class="card">
+      <h2>어디서 끝나나</h2>
+      <p class="why">
+        세션의 <b>마지막 줄</b>을 센다. 온보딩을 넘긴 뒤의 이탈은 여기서만 보인다.
+      </p>
+      <div class="rows"><table id="stuck"></table></div>
+    </div>
+
+    <div class="card">
+      <h2>화면별 쓰임</h2>
+      <p class="why">아무도 안 가는 탭이 있으면 그건 지울 후보다.</p>
+      <table id="screens"></table>
+    </div>
+
+    <div class="card">
+      <h2>그림자 → 실제 발송</h2>
+      <p class="why">며칠 만에 켜나. 안 켜고 남으면 제품이 신뢰를 못 얻은 것이다.</p>
+      <table id="shadow"></table>
+    </div>
+
+    <div class="card">
+      <h2>신고함</h2>
+      <p class="why">
+        번호 뒤 4자리와 사유만 나온다. <b>문자 본문은 이 화면에 없다</b> — 절대 규칙 2.
+      </p>
+      <div class="rows"><table id="reports"></table></div>
+    </div>
+
+    <div class="card" style="grid-column: 1 / -1;">
+      <h2>크래시</h2>
+      <p class="why">
+        같은 것끼리 묶었다. <b>한 사람에게 20번 난 것보다 20명에게 한 번씩 난 것이 급하다</b> —
+        그래서 «사람» 으로 정렬한다. 줄을 누르면 스택이 열린다.
+      </p>
+      <div class="rows"><table id="crashes"></table></div>
+      <pre id="crashStack" style="display:none; margin-top:12px; padding:12px; font-size:12px;
+           background:var(--bg); border:1px solid var(--line); border-radius:10px;
+           overflow-x:auto; white-space:pre;"></pre>
+    </div>
+
+    <!-- ── 여정 탐색기 ──────────────────────────────────────────────────
+         숫자는 «어디서» 만 알려준다. **«왜»는 한 사람의 한 번의 실행을
+         순서대로 따라가야 보인다.**                                      -->
+    <div class="card" style="grid-column: 1 / -1;">
+      <h2>사용자 여정 탐색</h2>
+      <p class="why">
+        왼쪽에서 세션을 고르면 오른쪽에 그 사람이 겪은 순서가 그대로 나온다.
+        <b>간격이 큰 줄이 막힌 자리</b>다 — 오래 멈췄다는 게 「어려웠다」의 유일한 신호다.
+      </p>
+      <div style="display:flex; gap:10px; align-items:center; margin-bottom:12px; flex-wrap:wrap;">
+        <label style="font-size:13.5px;">
+          <input type="checkbox" id="onlyStuck" style="width:auto"> 온보딩을 못 끝낸 세션만
+        </label>
+        <span class="muted" style="font-size:12.5px;" id="sessCount"></span>
+      </div>
+      <div style="display:grid; gap:16px; grid-template-columns: minmax(320px, 1fr) minmax(320px, 1fr);">
+        <div class="rows"><table id="sessions"></table></div>
+        <div class="rows" id="journey"><p class="muted">왼쪽에서 세션을 고르세요.</p></div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<script>
+'use strict';
+
+/* ── 설정 ────────────────────────────────────────────────────────────────
+   `config.js` 가 있으면 그걸 쓰고, 없으면 브라우저에 저장한 값을 쓴다.
+   ⛔ 키를 이 파일에 박지 않는 이유는 하나다 — **저장소에 키를 두지 않는다**(R3 계열).
+      anon 키는 비밀이 아니지만, 「키를 커밋해도 되는 경우」를 한 번 허용하면
+      다음엔 service_role 이 같은 논리로 들어온다.                              */
+const CFG = (() => {
+  if (window.ILGAM) return window.ILGAM;
+  try { return JSON.parse(localStorage.getItem('ilgam.cfg') || 'null'); } catch { return null; }
+})();
+
+const $ = (id) => document.getElementById(id);
+const show = (id, on) => { $(id).hidden = !on; };
+
+/* ── 서버와 이야기하는 유일한 통로 ───────────────────────────────────────
+   RPC 만 부른다. 표를 직접 읽지 않는다 — 무엇을 보여줄지는 **서버가 정한다.**  */
+let token = localStorage.getItem('ilgam.token') || '';
+
+async function api(path, body, auth = true) {
+  const res = await fetch(CFG.url + path, {
+    method: 'POST',
+    headers: {
+      'apikey': CFG.key,
+      'Content-Type': 'application/json',
+      ...(auth && token ? { 'Authorization': 'Bearer ' + token } : {}),
+    },
+    body: JSON.stringify(body || {}),
+  });
+  const text = await res.text();
+  let data = null;
+  try { data = text ? JSON.parse(text) : null; } catch { data = text; }
+  if (!res.ok) throw new Error((data && (data.message || data.msg || data.error_description)) || text || res.status);
+  return data;
+}
+
+const rpc = (name, args) => api('/rest/v1/rpc/' + name, args || {});
+
+/* ── 그리기 도구 ─────────────────────────────────────────────────────── */
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const num = (n) => (n === null || n === undefined ? '—' : Number(n).toLocaleString('ko-KR'));
+const when = (s) => {
+  if (!s) return '—';
+  const d = new Date(s);
+  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+};
+function table(el, cols, rows, rowAttrs) {
+  if (!rows || !rows.length) { el.innerHTML = '<tbody><tr><td class="muted">아직 없습니다</td></tr></tbody>'; return; }
+  const head = cols.map((c) => `<th class="${c.n ? 'n' : ''}">${esc(c.h)}</th>`).join('');
+  const body = rows.map((r, i) => {
+    const tds = cols.map((c) => `<td class="${c.n ? 'n' : ''}">${c.f ? c.f(r) : esc(r[c.k])}</td>`).join('');
+    return `<tr ${rowAttrs ? rowAttrs(r, i) : ''}>${tds}</tr>`;
+  }).join('');
+  el.innerHTML = `<thead><tr>${head}</tr></thead><tbody>${body}</tbody>`;
+}
+
+/* ── 판 하나하나 ─────────────────────────────────────────────────────── */
+async function drawOverview() {
+  const o = await rpc('admin_overview');
+  const items = [
+    ['가입', o.users, `최근 7일 +${num(o.new_7d)}`],
+    ['발송 켠 사람', o.sending, '그림자 모드를 껐다'],
+    ['온보딩 끝', o.onboard_done, '끝까지 간 사람'],
+    ['7일 활성', o.active_7d, `오늘 ${num(o.active_1d)}명`],
+    ['7일 세션', o.sessions_7d, '앱을 켠 횟수'],
+    ['신고 대기', o.reports_open, o.reports_open > 0 ? '처리해야 한다' : '없음'],
+  ];
+  $('kpis').innerHTML = items.map(([label, v, sub]) =>
+    `<div class="kpi"><b>${num(v)}</b><span>${esc(label)}<br>${esc(sub)}</span></div>`).join('');
+}
+
+async function drawFunnel() {
+  const rows = await rpc('admin_funnel');
+  const top = Math.max(1, ...rows.map((r) => r.people));
+  $('funnel').innerHTML = rows.map((r) => `
+    <div class="fun">
+      <span title="${esc(r.step)}">${esc(r.label)}</span>
+      <div class="track"><div class="fill" style="width:${(r.people / top * 100).toFixed(1)}%"></div></div>
+      <span class="n">${num(r.people)}${r.lost > 0 ? ` <span class="lost">−${num(r.lost)}</span>` : ''}</span>
+    </div>`).join('') || '<p class="muted">아직 없습니다</p>';
+}
+
+async function drawPermissions() {
+  const rows = await rpc('admin_permissions');
+  const label = { notice: '알림 접근', sms: '문자 보내기', battery: '배터리 제외' };
+  table($('perm'), [
+    { h: '권한', f: (r) => esc(label[r.permission] || r.permission) },
+    { h: '눌렀다', k: 'asked', n: true },
+    { h: '켜졌다', k: 'granted', n: true },
+    { h: '거부', k: 'denied', n: true },
+    {
+      h: '', f: (r) => {
+        // 누른 사람 대비 켜진 사람. 여기가 낮으면 문구를 고친다
+        if (!r.asked) return '';
+        const pct = Math.round(100 * r.granted / r.asked);
+        return `<span class="pill ${pct >= 70 ? 'ok' : 'bad'}">${pct}%</span>`;
+      },
+    },
+  ], rows);
+}
+
+async function drawStuck() {
+  const rows = await rpc('admin_stuck');
+  table($('stuck'), [
+    { h: '마지막에 한 것', k: 'last_event' },
+    { h: '세션', k: 'sessions', n: true },
+    { h: '비율', n: true, f: (r) => r.pct + '%' },
+  ], rows);
+}
+
+async function drawScreens() {
+  const rows = await rpc('admin_screens');
+  const label = { home: '홈', inbox: '지원 현황', schedule: '일정', history: '이력', me: '내 정보', settings: '설정', diag: '진단' };
+  table($('screens'), [
+    { h: '화면', f: (r) => esc(label[r.screen] || r.screen) },
+    { h: '사람', k: 'people', n: true },
+    { h: '열람', k: 'views', n: true },
+    { h: '세션', k: 'sessions', n: true },
+  ], rows);
+}
+
+async function drawShadow() {
+  const rows = await rpc('admin_shadow');
+  table($('shadow'), [
+    { h: '누구', k: 'who' },
+    { h: '첫 실행', f: (r) => when(r.first_open) },
+    { h: '켠 날', f: (r) => (r.turned_on ? when(r.turned_on) : '<span class="pill bad">아직</span>') },
+    { h: '걸린 날', n: true, f: (r) => (r.days === null ? '—' : r.days + '일') },
+  ], rows);
+}
+
+async function drawReports() {
+  const rows = await rpc('admin_reports', { p_limit: 100 });
+  table($('reports'), [
+    { h: '받은 때', f: (r) => when(r.received_at) },
+    { h: '번호 끝', f: (r) => '···' + esc(r.last4 || '') },
+    { h: '사유', k: 'note' },
+    {
+      h: '', f: (r) => (r.status === 'handled'
+        ? '<span class="pill ok">처리함</span>'
+        : `<button data-report="${r.id}">처리로</button>`),
+    },
+  ], rows);
+}
+
+async function drawCrashes() {
+  const rows = await rpc('admin_crashes', { p_days: 30 });
+  table($('crashes'), [
+    { h: '예외', f: (r) => esc(String(r.exception).split('.').pop()) },
+    { h: '터진 자리', f: (r) => esc(String(r.top_frame).replace(/^com\.ilgam\.radar\./, '')) },
+    { h: '사람', k: 'people', n: true },
+    { h: '횟수', k: 'times', n: true },
+    { h: '마지막', f: (r) => when(r.last_seen) },
+    { h: '버전', k: 'app_version' },
+  ], rows, (r) => `class="pick" data-crash="${esc(r.sample_id)}"`);
+}
+
+/** 한 건의 스택 전문. 묶음만 봐서는 «왜»를 모른다 */
+async function showStack(id) {
+  const c = await rpc('admin_crash', { p_id: id });
+  const el = $('crashStack');
+  el.style.display = 'block';
+  el.textContent =
+    `${c.exception}${c.message ? ': ' + c.message : ''}
+` +
+    `${c.device_model} · ${c.os_version} · 앱 ${c.app_version} · ${when(c.occurred_at)}
+
+` +
+    (c.stack || '');
+}
+
+/* ── 여정 탐색 ───────────────────────────────────────────────────────── */
+let sessions = [];
+
+async function drawSessions() {
+  sessions = await rpc('admin_sessions', {
+    p_days: 30, p_limit: 200, p_only_stuck: $('onlyStuck').checked,
+  });
+  $('sessCount').textContent = `${sessions.length}개 세션 (최근 30일)`;
+  table($('sessions'), [
+    { h: '언제', f: (r) => when(r.started_at) },
+    { h: '누구', k: 'who' },
+    { h: '줄', k: 'steps', n: true },
+    { h: '분', n: true, f: (r) => r.minutes },
+    {
+      h: '끝난 자리', f: (r) => `${esc(r.last)} ${r.finished_onboarding
+        ? '' : '<span class="pill bad">온보딩 중</span>'}`,
+    },
+  ], sessions, (r, i) => `class="pick" data-i="${i}"`);
+}
+
+async function drawJourney(sid) {
+  const rows = await rpc('admin_journey', { p_session_id: sid });
+  const label = {
+    app_open: '앱을 켰다', screen: '화면', onboard_step: '온보딩 단계',
+    onboard_done: '온보딩 끝', permission: '권한', shadow_off: '발송 켬',
+    shadow_on: '발송 끔', send_gate: '발송 관문',
+  };
+  // 30초 넘게 멈춘 자리를 띄운다. 화면을 읽느라 멈춘 것과 막힌 것의 경계다
+  $('journey').innerHTML = rows.map((r) => `
+    <div class="step ${r.gap_sec > 30 ? 'slow' : ''}">
+      <span class="muted">${r.seq}</span>
+      <span>${esc(label[r.event] || r.event)}${r.detail ? ' · <b>' + esc(r.detail) + '</b>' : ''}</span>
+      <span class="gap">${r.gap_sec === null ? when(r.at) : '+' + num(r.gap_sec) + '초'}</span>
+    </div>`).join('') || '<p class="muted">줄이 없습니다</p>';
+}
+
+/* ── 전체 다시 그리기 ────────────────────────────────────────────────── */
+async function refresh() {
+  $('banner').hidden = true;
+  try {
+    await Promise.all([
+      drawOverview(), drawFunnel(), drawPermissions(), drawStuck(),
+      drawScreens(), drawShadow(), drawReports(), drawCrashes(), drawSessions(),
+    ]);
+  } catch (e) {
+    // ⛔ 대화상자를 안 쓴다. 콘솔이 alert 을 띄우면 자동 확인 도구가 통째로 멈추고,
+    //    무엇보다 「확인」을 누르기 전까지 화면을 아무것도 못 읽는다
+    const b = $('banner');
+    b.hidden = false;
+    b.textContent = '불러오지 못했습니다 — ' + e.message;
+    // 운영자가 아니거나 토큰이 만료됐다. 둘 다 다시 로그인이 답이다
+    if (/운영자|JWT|token|expired|401/i.test(e.message)) signOut();
+  }
+}
+
+/* ── 로그인 ──────────────────────────────────────────────────────────── */
+let sentTo = '';
+
+async function onGo() {
+  const err = $('gateErr');
+  err.textContent = '';
+  $('go').disabled = true;
+  try {
+    if (!sentTo) {
+      const email = $('email').value.trim();
+      if (!email) throw new Error('이메일을 넣어주세요');
+      // ⛔ 새 계정을 만들지 않는다. 없는 이메일이면 그냥 코드가 안 온다
+      await api('/auth/v1/otp', { email, create_user: false }, false);
+      sentTo = email;
+      $('code').hidden = false;
+      $('code').focus();
+      $('go').textContent = '들어가기';
+    } else {
+      const t = await api('/auth/v1/verify',
+        { email: sentTo, token: $('code').value.trim(), type: 'email' }, false);
+      token = t.access_token;
+      localStorage.setItem('ilgam.token', token);
+      await enter();
+    }
+  } catch (e) {
+    err.textContent = e.message;
+  } finally {
+    $('go').disabled = false;
+  }
+}
+
+function signOut() {
+  token = '';
+  localStorage.removeItem('ilgam.token');
+  sentTo = '';
+  $('code').hidden = true;
+  $('go').textContent = '코드 받기';
+  show('app', false); show('gate', true);
+}
+
+async function enter() {
+  show('gate', false); show('setup', false); show('app', true);
+  try {
+    const me = await api('/auth/v1/user', {}, true).catch(() => null);
+    $('who').textContent = me && me.email ? me.email : '';
+  } catch { /* 이름표일 뿐이다. 없어도 콘솔은 돈다 */ }
+  await refresh();
+}
+
+/* ── 시작 ────────────────────────────────────────────────────────────── */
+$('reload').onclick = refresh;
+$('out').onclick = signOut;
+$('go').onclick = onGo;
+$('code').addEventListener('keydown', (e) => { if (e.key === 'Enter') onGo(); });
+$('email').addEventListener('keydown', (e) => { if (e.key === 'Enter') onGo(); });
+$('onlyStuck').onchange = drawSessions;
+
+$('sessions').addEventListener('click', (e) => {
+  const tr = e.target.closest('tr[data-i]');
+  if (!tr) return;
+  $('sessions').querySelectorAll('tr.on').forEach((x) => x.classList.remove('on'));
+  tr.classList.add('on');
+  drawJourney(sessions[Number(tr.dataset.i)].session_id);
+});
+
+// 처리 메모는 **그 줄 안에서** 받는다. 대화상자를 띄우면 다른 줄을 못 보면서 적게 된다
+$('crashes').addEventListener('click', (e) => {
+  const tr = e.target.closest('tr[data-crash]');
+  if (!tr) return;
+  $('crashes').querySelectorAll('tr.on').forEach((x) => x.classList.remove('on'));
+  tr.classList.add('on');
+  showStack(tr.dataset.crash);
+});
+
+$('reports').addEventListener('click', async (e) => {
+  const open = e.target.dataset && e.target.dataset.report;
+  if (open) {
+    e.target.outerHTML =
+      `<span style="display:flex; gap:6px;">` +
+      `<input data-note="${open}" placeholder="어떻게 처리했나요?" style="width:170px">` +
+      `<button data-done="${open}">확인</button></span>`;
+    return;
+  }
+  const done = e.target.dataset && e.target.dataset.done;
+  if (!done) return;
+  const note = $('reports').querySelector(`input[data-note="${done}"]`).value.trim();
+  await rpc('admin_handle_report', { p_id: Number(done), p_note: note });
+  drawReports();
+});
+
+$('cfgSave').onclick = () => {
+  const url = $('cfgUrl').value.trim().replace(/\/+$/, '');
+  const key = $('cfgKey').value.trim();
+  if (!url || !key) { $('cfgErr').textContent = '둘 다 넣어주세요'; return; }
+  localStorage.setItem('ilgam.cfg', JSON.stringify({ url, key }));
+  location.reload();
+};
+
+if (!CFG) {
+  show('setup', true);
+} else if (token) {
+  enter();
+} else {
+  show('gate', true);
+}
+</script>
+</body>
+</html>
