@@ -120,15 +120,20 @@
 </header>
 
 <!-- ── 로그인 ─────────────────────────────────────────────────────────────
-     앱과 **같은 계정**으로 들어온다. 콘솔 전용 비밀번호를 따로 만들지 않는다 —
-     그런 건 관리가 안 되고, 결국 메모장에 적히게 된다.                        -->
+     앱과 **같은 계정**으로 들어온다. 콘솔 전용 계정을 따로 만들지 않는다 —
+     그런 건 관리가 안 되고, 결국 메모장에 적히게 된다.
+
+     ★ 6자리 코드 → **비밀번호**로 바꿨다 (2026-09-09). 메일이 늦게 오거나 안 와서
+       로그인 자체가 막혔다. 비밀번호는 **서버 계정에만** 있고 이 파일에는 없다 —
+       공개 저장소에 올라가는 파일이라 여기 적으면 자물쇠 옆에 열쇠를 붙이는 셈이다.
+       크롬이 기억하게 해서(`autocomplete`) «처음 한 번만 치고 그다음은 자동»으로 만든다. -->
 <main id="gate" hidden>
   <div class="card center stack">
     <h2>운영자 로그인</h2>
-    <p class="why">가입한 이메일로 6자리 코드를 보냅니다.</p>
-    <input id="email" type="email" placeholder="g72003541@gmail.com" autocomplete="email">
-    <input id="code" type="text" inputmode="numeric" placeholder="받은 6자리 코드" hidden>
-    <button class="primary" id="go" style="width:100%">코드 받기</button>
+    <p class="why">운영자 이메일과 비밀번호로 들어갑니다.</p>
+    <input id="email" type="email" value="g72003541@gmail.com" autocomplete="username">
+    <input id="pw" type="password" placeholder="비밀번호" autocomplete="current-password">
+    <button class="primary" id="go" style="width:100%">들어가기</button>
     <div class="err" id="gateErr"></div>
   </div>
 </main>
@@ -469,31 +474,25 @@ async function refresh() {
 }
 
 /* ── 로그인 ──────────────────────────────────────────────────────────── */
-let sentTo = '';
-
 async function onGo() {
   const err = $('gateErr');
   err.textContent = '';
   $('go').disabled = true;
   try {
-    if (!sentTo) {
-      const email = $('email').value.trim();
-      if (!email) throw new Error('이메일을 넣어주세요');
-      // ⛔ 새 계정을 만들지 않는다. 없는 이메일이면 그냥 코드가 안 온다
-      await api('/auth/v1/otp', { email, create_user: false }, false);
-      sentTo = email;
-      $('code').hidden = false;
-      $('code').focus();
-      $('go').textContent = '들어가기';
-    } else {
-      const t = await api('/auth/v1/verify',
-        { email: sentTo, token: $('code').value.trim(), type: 'email' }, false);
-      token = t.access_token;
-      localStorage.setItem('ilgam.token', token);
-      await enter();
-    }
+    const email = $('email').value.trim();
+    const password = $('pw').value;
+    if (!email || !password) throw new Error('이메일과 비밀번호를 넣어주세요');
+    const t = await api('/auth/v1/token?grant_type=password', { email, password }, false);
+    token = t.access_token;
+    localStorage.setItem('ilgam.token', token);
+    await enter();
   } catch (e) {
-    err.textContent = e.message;
+    /*
+     * ⛔ **왜 틀렸는지 말하지 않는다.** 「그런 계정 없음」과 「비밀번호 틀림」을
+     *    가르면 남이 계정의 존재 여부를 확인할 수 있다. 한 문장으로 합친다.
+     *    (넣다 만 값은 위에서 던진 문구가 있지만 그건 계정 정보가 아니다)
+     */
+    err.textContent = '이메일 또는 비밀번호가 맞지 않습니다';
   } finally {
     $('go').disabled = false;
   }
@@ -502,9 +501,8 @@ async function onGo() {
 function signOut() {
   token = '';
   localStorage.removeItem('ilgam.token');
-  sentTo = '';
-  $('code').hidden = true;
-  $('go').textContent = '코드 받기';
+  // 비밀번호를 화면에 남기지 않는다 — 로그아웃한 자리에 값이 남아 있으면 로그아웃이 아니다
+  $('pw').value = '';
   show('app', false); show('gate', true);
 }
 
@@ -521,7 +519,7 @@ async function enter() {
 $('reload').onclick = refresh;
 $('out').onclick = signOut;
 $('go').onclick = onGo;
-$('code').addEventListener('keydown', (e) => { if (e.key === 'Enter') onGo(); });
+$('pw').addEventListener('keydown', (e) => { if (e.key === 'Enter') onGo(); });
 $('email').addEventListener('keydown', (e) => { if (e.key === 'Enter') onGo(); });
 $('onlyStuck').onchange = drawSessions;
 
