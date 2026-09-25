@@ -9,6 +9,8 @@
     카드 마크업·RPC 호출·인자는 그대로 옮겼다. 화면은 처음 열 때 부르고, [새로고침]은 지금 화면만 다시 부른다.
     역할 판정은 여전히 서버 — 사이드바에서 숨기는 건 편의, 직접 들어오면 거부 문구만 뜬다.
     회귀: `node admin/tests/console_ia.cjs` (가짜 응답 · 실서버 호출 0)
+  ★ 2026-09-25 · 운영자 관리(최고관리자만) · 내 계정. 역할은 최고관리자·관리자 둘 — 관리자 = 운영자 관리만 뺀 전부.
+    관리자 계정은 최고관리자가 이메일 + 첫 비밀번호로 만들고, 관리자는 «내 계정»에서 스스로 바꾼다.
   ★ 2026-09-24 · 좁은 폭(≤820px) — 메뉴는 머리띠 햄버거의 서랍, [재인증]·[로그아웃]은 서랍 바닥,
     [새로고침]은 맨 위에서 당겨서. 820px 초과는 그대로(사이드바 + 머리띠 버튼).
   ★ 2026-09-24 · 로그인 = 이메일 + 비밀번호(코드 로그인 폐지). 재설정 메일 → 이 콘솔로 돌아와 새 비밀번호.
@@ -173,7 +175,7 @@
   .task-links strong { display: flex; justify-content: space-between; font-size: 16px; margin: 8px 0 10px; }
   .task-links strong span { color: var(--go); }
   .task-links p { margin: 0; font-size: 12.5px; color: var(--mut); }
-  #page-overview > .card, #page-appeals > .card, #page-restrictions > .card, #page-feedback > .card, #page-popups > .card,
+  #page-overview > .card, #page-appeals > .card, #page-restrictions > .card, #page-feedback > .card, #page-popups > .card, #page-operators > .card, #page-account > .card,
   #page-members > .card, #page-control > .card, #page-crashes > .card, #page-audit > .card { grid-column: 1 / -1; }
   details.help { font-size: 12.5px; color: var(--mut); margin: 4px 0 14px; }
   details.help summary { cursor: pointer; width: fit-content; }
@@ -352,6 +354,8 @@
         <p class="nav-group">관리</p>
         <a href="#control" data-page="control"><span class="nav-dot" aria-hidden="true"></span>서비스 제어</a>
         <a href="#audit" data-page="audit"><span class="nav-dot" aria-hidden="true"></span>감사 기록</a>
+        <a href="#operators" data-page="operators"><span class="nav-dot" aria-hidden="true"></span>운영자 관리</a>
+        <a href="#account" data-page="account"><span class="nav-dot" aria-hidden="true"></span>내 계정</a>
       </nav>
       <div class="sidebar-foot">운영자 전용 · 접근 기록 관리</div>
       <div class="drawer-actions">
@@ -363,6 +367,12 @@
 
     <div class="workspace-main">
       <div id="ptr" role="status" aria-live="polite" hidden></div>
+      <div class="card" id="tempPwBanner" hidden
+           style="border-color:var(--wait); margin-bottom:16px;">
+        <b>최고관리자가 정해 준 첫 비밀번호를 쓰고 있습니다.</b>
+        <span class="muted">본인만 아는 비밀번호로 바꿔 주세요 — 바꾸면 최고관리자도 모릅니다.</span>
+        <a href="#account" style="margin-left:6px">내 계정에서 바꾸기 ›</a>
+      </div>
       <div id="banner" class="card" hidden
            style="border-color:var(--flag); color:var(--flag); margin-bottom:16px;"></div>
       <div class="crumb">워크스페이스 / <span id="crumb"></span></div>
@@ -791,6 +801,69 @@
         </div>
       </section>
 
+      <section class="grid page" id="page-operators" hidden>
+        <!-- ══ 운영자 관리 (2026-09-25) — 최고관리자만 ══════════════════════════════
+             관리자 계정은 여기서 **이메일 + 첫 비밀번호**로 만든다(앱 가입·서비스 계정 연동 없음).
+             관리자는 «내 계정»에서 비밀번호를 스스로 바꾼다. 만들기·역할·지우기는 재인증 + 이유 + 감사. -->
+        <div class="card" id="cardOperators" data-roles="owner" data-owner-only>
+          <h2>운영자</h2>
+          <details class="help"><summary>확인 기준 및 운영 안내</summary>
+          <p class="why">
+            역할은 <b>최고관리자</b>(전부)와 <b>관리자</b>(운영자 관리만 빼고 전부) 둘이다. 세부 권한은 나중에 따로 나눈다.
+            <b>콘솔에서 만든 계정</b>은 지우면 계정까지 지워지고, <b>앱에서 가입한 계정</b>은 운영자 권한만 빠진다(앱 기록은 그대로).
+            자기 자신은 내리거나 지울 수 없다. 만들기·역할 바꾸기·지우기는 15분 안에 [재인증]이 필요하다.
+          </p>
+          </details>
+          <div class="row" style="margin-bottom:12px;">
+            <label for="opReason">변경 이유</label>
+            <input id="opReason" placeholder="역할 바꾸기·정지·지우기에 쓴다 — 감사 기록에 남는다(필수)" style="flex:1; min-width:240px">
+          </div>
+          <div class="rows"><table id="opList"></table></div>
+          <div class="err" id="opErr"></div>
+          <div class="note" id="opMsg"></div>
+        </div>
+
+        <div class="card" id="cardOpCreate" data-roles="owner" data-owner-only>
+          <h2>관리자 계정 만들기</h2>
+          <p class="note" style="margin:0 0 12px">새 이메일로 계정을 만든다. 이미 있는 이메일(앱 이용자 등)로는 만들지 않는다.</p>
+          <div class="stack">
+            <div class="row">
+              <label for="ocEmail">이메일</label><input id="ocEmail" type="email" autocomplete="off" placeholder="관리자가 로그인할 이메일" style="flex:1">
+              <label for="ocRole">역할</label>
+              <select id="ocRole"><option value="admin" selected>관리자</option><option value="owner">최고관리자</option></select>
+            </div>
+            <div class="row">
+              <label for="ocPw">첫 비밀번호</label>
+              <input id="ocPw" type="password" autocomplete="new-password" placeholder="10자 이상" style="flex:1">
+              <button id="ocGen" type="button">만들어 주기</button>
+              <button id="ocShow" type="button">보기</button>
+            </div>
+            <input id="ocReason" placeholder="이유 — 감사 기록에 남는다(필수)">
+            <div class="row">
+              <button class="primary" id="ocCreate">계정 만들기</button>
+            </div>
+            <div class="err" id="ocErr"></div>
+            <div class="note" id="ocDone"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="grid page" id="page-account" hidden>
+        <div class="card" id="cardAccount" data-roles="owner,admin,support,analyst,content">
+          <h2>내 비밀번호 바꾸기</h2>
+          <p class="note" style="margin:0 0 12px">지금 비밀번호를 확인한 뒤 새 비밀번호로 바꾼다. 바꾸면 이 비밀번호는 본인만 안다.</p>
+          <form class="stack" id="pwForm" autocomplete="on">
+            <input id="acEmailHint" type="email" autocomplete="username" hidden>
+            <input id="acCur" type="password" autocomplete="current-password" placeholder="지금 비밀번호">
+            <input id="acNew" type="password" autocomplete="new-password" placeholder="새 비밀번호 (10자 이상)">
+            <input id="acNew2" type="password" autocomplete="new-password" placeholder="새 비밀번호 한 번 더">
+            <div class="row"><button class="primary" id="acSave" type="submit">비밀번호 바꾸기</button></div>
+            <div class="err" id="acErr" role="alert"></div>
+            <div class="note" id="acDone" role="status"></div>
+          </form>
+        </div>
+      </section>
+
       <section class="grid page" id="page-audit" hidden>
         <div class="card" id="cardAudit" data-roles="owner" style="grid-column: 1 / -1;">
           <h2>감사 기록</h2>
@@ -1061,16 +1134,18 @@ async function loadRole() {
     else throw e;
   }
   $('roleText').textContent = ROLE === 'legacy' ? '— (서버에 M4 적용 전)' :
-    ({ owner: '최고관리자', support: '지원', analyst: '분석', content: '콘텐츠' }[ROLE] || ROLE);
+    (ROLE_NAME[ROLE] || ROLE);
   $('roleBadge').hidden = !ME; $('roleBadge').textContent = $('roleText').textContent;
-  $('reauth').hidden = ROLE !== 'owner';
-  $('reauthM').hidden = ROLE !== 'owner';
+  $('reauth').hidden = !ownerish();
+  $('reauthM').hidden = !ownerish();
+  $('tempPwBanner').hidden = !(ME && ME.temp_password);
   drawFeedbackBadge();
   $('opsNote').textContent = ROLE === 'legacy'
     ? '운영 마이그레이션(20260924220000_ops_admin.sql)이 아직 적용되지 않았습니다'
     : (ME && ME.recent_auth_ok ? '재인증 유효' : '민감한 작업 전 [재인증] 필요');
   document.querySelectorAll('[data-roles]').forEach((c) => {
-    c.hidden = ROLE === 'legacy' || !(c.dataset.roles.split(',').includes(ROLE));
+    const roles = c.dataset.roles.split(',');
+    c.hidden = ROLE === 'legacy' || ('ownerOnly' in c.dataset ? ROLE !== 'owner' : !(roles.includes(ROLE) || roles.includes(effRole())));
   });
 }
 
@@ -1132,14 +1207,24 @@ const PAGES = {
   audit: { title: '감사 기록', desc: '운영자의 변경 이력과 이유를 확인합니다.',
     roles: ['owner'], m4: true,
     load: [['cardAudit', drawAudit]] },
+  operators: { title: '운영자 관리', desc: '관리자 계정을 만들고, 역할을 바꾸고, 지웁니다. 최고관리자만 봅니다.',
+    roles: ['owner'], ownerOnly: true, m4: true,
+    load: [['cardOperators', drawOperators]] },
+  account: { title: '내 계정', desc: '내 비밀번호를 바꿉니다.',
+    roles: ['owner', 'admin', 'support', 'analyst', 'content'], m4: true,
+    load: [] },
 };
-const ROLE_NAME = { owner: '최고관리자', support: '지원', analyst: '분석', content: '콘텐츠' };
+const ROLE_NAME = { owner: '최고관리자', admin: '관리자', support: '지원', analyst: '분석', content: '콘텐츠' };
+/* 관리자(admin) = 최고관리자에서 운영자 관리만 뺀 전부. 화면 판정은 «최고관리자처럼» 보되 ownerOnly 는 막는다 — 서버도 같은 선이다 */
+const ownerish = () => ROLE === 'owner' || ROLE === 'admin';
+const effRole = () => (ROLE === 'admin' ? 'owner' : ROLE);
 const LOADED = new Set();
 
 function canSee(id) {
   const p = PAGES[id];
   if (ROLE === 'legacy') return !p.m4;   // M4 전 서버 — 역할이 없다. 옛 집계 화면만 연다
-  return p.roles.includes(ROLE);
+  if (p.ownerOnly) return ROLE === 'owner';
+  return p.roles.includes(ROLE) || p.roles.includes(effRole());
 }
 
 function route(focus) {
@@ -1320,7 +1405,7 @@ async function drawMembers() {
     { h: '모드', f: (r) => r.shadow_mode == null ? '—' : (r.shadow_mode ? '연습' : '실제 발송') },
     { h: '7일 발송', k: 'sends_7d', n: true },
     { h: '', f: (r) => `<button data-mon="${esc(r.who)}">발송 기록</button>` +
-        (ROLE === 'owner' ? ` <button data-rs="${esc(r.who)}">제한 검토</button>` : '') },
+        (ownerish() ? ` <button data-rs="${esc(r.who)}">제한 검토</button>` : '') },
   ], rows);
 }
 $('members').addEventListener('click', (e) => {
@@ -1371,9 +1456,9 @@ async function drawRelief() {
 
 let RS_ROWS = [];
 async function drawRestrictions() {
-  $('rsComposer').hidden = ROLE !== 'owner';
+  $('rsComposer').hidden = !ownerish();
   RS_ROWS = await m5(() => rpc('admin_restrictions', { p_active_only: $('rsActive').checked }));
-  const owner = ROLE === 'owner';
+  const owner = ownerish();
   table($('restrictions'), [
     { h: 'ID', k: 'id', n: true }, { h: '회원', k: 'who' },
     { h: '범위', f: (r) => `<span class="pill ${r.lifted_at ? 'ok' : 'bad'}">${esc(SCOPE_LABEL[r.scope] || r.scope)}</span>` },
@@ -1536,7 +1621,7 @@ async function fb(fn) {
 /** 사이드바 배지 — 안 읽은 수. 권한이 없거나 서버에 없으면 조용히 숨긴다 */
 async function drawFeedbackBadge() {
   const b = $('fbNavCount');
-  if (!['owner', 'support'].includes(ROLE)) { b.hidden = true; return; }
+  if (!['owner', 'admin', 'support'].includes(ROLE)) { b.hidden = true; return; }
   try {
     const c = await rpc('admin_feedback_counts');
     b.textContent = c.received > 99 ? '99+' : String(c.received || 0);
@@ -1625,6 +1710,154 @@ async function drawFeedback() {
   });
 }
 $('fbGo').onclick = () => guard('cardFeedback', drawFeedback);
+
+/* ── 운영자 관리 (2026-09-25) ─────────────────────────────────────────────
+   최고관리자만(서버가 판정 — 'owner_only'). 만들기·역할·지우기 = 재인증 + 이유 + 요청 ID 멱등 + 감사.
+   ⛔ 첫 비밀번호는 만들기 요청에만 싣고 어디에도 저장하지 않는다(화면에 한 번 보여 줄 뿐).            */
+const OP_MISSING = '운영자 관리 마이그레이션(20260925120000_operator_admin.sql)이 아직 적용되지 않았습니다';
+const OP_REQ = {};
+let OP_ROWS = [];
+async function opCall(fn) {
+  try { return await fn(); }
+  catch (e) { if (missingFn(e)) throw new Error(OP_MISSING); throw e; }
+}
+
+async function drawOperators() {
+  OP_ROWS = await opCall(() => rpc('admin_operators'));
+  const roleOpt = (cur) => ['owner', 'admin'].concat(['owner', 'admin'].includes(cur) ? [] : [cur])
+    .map((r) => `<option value="${r}"${r === cur ? ' selected' : ''}>${esc(ROLE_NAME[r] || r)}</option>`).join('');
+  table($('opList'), [
+    { h: '이메일', f: (r) => `<b>${esc(r.email)}</b>${r.is_me ? ' <span class="pill ok">나</span>' : ''}` },
+    { h: '역할', f: (r) => r.is_me ? esc(ROLE_NAME[r.role] || r.role)
+        : `<select data-oprole="${esc(r.user_id)}" aria-label="${esc(r.email)} 역할">${roleOpt(r.role)}</select>` },
+    { h: '상태', f: (r) => `<span class="pill ${r.status === 'active' ? 'ok' : 'bad'}">${r.status === 'active' ? '활성' : '정지'}</span>` },
+    { h: '비밀번호', f: (r) => r.temp_password ? '<span class="pill">첫 비밀번호</span>' : '본인 설정' },
+    { h: '계정', f: (r) => r.created_via === 'console' ? '콘솔에서 만듦' : '앱 계정' },
+    { h: '마지막 로그인', f: (r) => when(r.last_sign_in_at) },
+    { h: '', f: (r) => r.is_me ? '<span class="muted" style="font-size:12px">자기 자신은 바꿀 수 없음</span>'
+        : `<span style="display:flex;gap:6px;flex-wrap:wrap">
+             <button data-opapply="${esc(r.user_id)}">역할 적용</button>
+             <button data-opstatus="${esc(r.user_id)}">${r.status === 'active' ? '정지' : '다시 활성'}</button>
+             <button class="danger" data-opdel="${esc(r.user_id)}">${r.created_via === 'console' ? '계정 삭제' : '권한 빼기'}</button></span>` },
+  ], OP_ROWS);
+
+  const find = (id) => OP_ROWS.find((r) => r.user_id === id);
+  const reason = () => $('opReason').value.trim();
+  const after = async (msg) => {
+    $('opMsg').textContent = msg; $('opErr').textContent = '';
+    await Promise.all([guard('cardOperators', drawOperators), guard('cardAudit', drawAudit)]);
+  };
+  const setRole = async (r, role, status, key) => {
+    if (!reason()) { $('opErr').textContent = '변경 이유를 적어 주세요'; $('opReason').focus(); return; }
+    try {
+      await opCall(() => rpc('admin_set_role', { p_request_id: (OP_REQ[key] ||= crypto.randomUUID()), p_email: r.email,
+        p_role: role, p_status: status, p_reason: reason() }));
+      delete OP_REQ[key];
+      await after(`${r.email} — ${ROLE_NAME[role] || role} · ${status === 'active' ? '활성' : '정지'}`);
+    } catch (e) { $('opErr').textContent = reauthHint(e); }
+  };
+  $('opList').querySelectorAll('[data-opapply]').forEach((b) => b.onclick = () => {
+    const r = find(b.dataset.opapply);
+    const role = $('opList').querySelector(`[data-oprole="${r.user_id}"]`).value;
+    setRole(r, role, r.status, 'r' + r.user_id + role);
+  });
+  $('opList').querySelectorAll('[data-opstatus]').forEach((b) => b.onclick = () => {
+    const r = find(b.dataset.opstatus);
+    const next = r.status === 'active' ? 'suspended' : 'active';
+    setRole(r, r.role, next, 's' + r.user_id + next);
+  });
+  // 지우기 — 그 줄 안에서 한 번 더 묻는다
+  $('opList').querySelectorAll('[data-opdel]').forEach((b) => b.onclick = () => {
+    const r = find(b.dataset.opdel);
+    if (!reason()) { $('opErr').textContent = '변경 이유를 적어 주세요'; $('opReason').focus(); return; }
+    b.outerHTML = `<span style="display:flex;gap:6px;align-items:center"><span class="muted" style="font-size:12px">${
+      r.created_via === 'console' ? '계정까지 지울까요?' : '운영자 권한을 뺄까요?'}</span>
+      <button class="danger" data-opdelyes="${esc(r.user_id)}">확인</button><button data-opdelno>취소</button></span>`;
+    $('opList').querySelector('[data-opdelno]').onclick = () => guard('cardOperators', drawOperators);
+    $('opList').querySelector(`[data-opdelyes="${r.user_id}"]`).onclick = async () => {
+      const key = 'd' + r.user_id;
+      try {
+        const res = await opCall(() => rpc('admin_operator_delete', { p_request_id: (OP_REQ[key] ||= crypto.randomUUID()),
+          p_user_id: r.user_id, p_reason: reason() }));
+        delete OP_REQ[key];
+        await after(`${r.email} — ${res && res.account_deleted ? '계정을 지웠습니다' : '운영자 권한을 뺐습니다(앱 계정은 그대로)'}`);
+      } catch (e) { $('opErr').textContent = reauthHint(e); }
+    };
+  });
+}
+
+/* 첫 비밀번호 만들어 주기 — 헷갈리는 글자(0 O 1 l I)를 뺀 14자 */
+$('ocGen').onclick = () => {
+  const abc = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+  const buf = new Uint32Array(14); crypto.getRandomValues(buf);
+  $('ocPw').value = Array.from(buf, (n) => abc[n % abc.length]).join('');
+  $('ocPw').type = 'text'; $('ocShow').textContent = '가리기';
+};
+$('ocShow').onclick = () => {
+  const show = $('ocPw').type === 'password';
+  $('ocPw').type = show ? 'text' : 'password'; $('ocShow').textContent = show ? '가리기' : '보기';
+};
+let OC_REQ = null;
+['ocEmail', 'ocPw', 'ocRole', 'ocReason'].forEach((id) => $(id).addEventListener('input', () => { OC_REQ = null; $('ocErr').textContent = ''; }));
+$('ocCreate').onclick = async () => {
+  $('ocErr').textContent = ''; $('ocDone').textContent = '';
+  const email = $('ocEmail').value.trim(), pw = $('ocPw').value, reason = $('ocReason').value.trim();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { $('ocErr').textContent = '이메일 형식이 아닙니다'; return; }
+  if (pw.length < 10) { $('ocErr').textContent = '첫 비밀번호는 10자 이상으로 정하세요'; return; }
+  if (!reason) { $('ocErr').textContent = '이유를 적어 주세요'; return; }
+  OC_REQ ||= crypto.randomUUID();
+  $('ocCreate').disabled = true;
+  try {
+    await opCall(() => rpc('admin_operator_create', { p_request_id: OC_REQ, p_email: email, p_password: pw,
+      p_role: $('ocRole').value, p_reason: reason }));
+    OC_REQ = null;
+    // 첫 비밀번호는 여기서 한 번만 보여 준다 — 입력칸은 비운다
+    $('ocDone').innerHTML = `계정을 만들었습니다 — <b>${esc(email)}</b> · ${esc(ROLE_NAME[$('ocRole').value])}.
+      이메일과 첫 비밀번호를 본인에게 직접 전하세요. 첫 로그인 뒤 «내 계정»에서 비밀번호를 바꾸라고 알려 주세요.
+      <br>첫 비밀번호: <code id="ocPwOnce">${esc(pw)}</code> <span class="muted">(이 화면을 떠나면 다시 볼 수 없습니다)</span>`;
+    $('ocPw').value = ''; $('ocPw').type = 'password'; $('ocShow').textContent = '보기';
+    $('ocEmail').value = ''; $('ocReason').value = '';
+    await Promise.all([guard('cardOperators', drawOperators), guard('cardAudit', drawAudit)]);
+  } catch (e) {
+    $('ocErr').textContent = reauthHint(e);
+  } finally { $('ocCreate').disabled = false; }
+};
+// 다른 화면으로 가면 한 번 보여 준 첫 비밀번호를 지운다
+window.addEventListener('hashchange', () => { if (location.hash !== '#operators') $('ocDone').textContent = ''; });
+
+/* ── 내 계정 — 비밀번호 바꾸기 ───────────────────────────────────────────
+   지금 비밀번호로 한 번 더 로그인(= 본인 확인 · 재인증 시각도 새로) → 새 비밀번호로 바꾼다(updateUser) →
+   서버에 «첫 비밀번호 아님»을 알린다. 비밀번호는 칸에서 바로 지운다.                                  */
+$('pwForm').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  $('acErr').textContent = ''; $('acDone').textContent = '';
+  const cur = $('acCur').value, a = $('acNew').value, b = $('acNew2').value;
+  const clear = () => { $('acCur').value = ''; $('acNew').value = ''; $('acNew2').value = ''; };
+  if (!cur) { $('acErr').textContent = '지금 비밀번호를 넣어 주세요'; return; }
+  if (a.length < 10) { $('acErr').textContent = '새 비밀번호는 10자 이상으로 정하세요'; return; }
+  if (a !== b) { $('acErr').textContent = '새 비밀번호 두 칸이 다릅니다'; $('acNew2').value = ''; return; }
+  if (a === cur) { $('acErr').textContent = '지금 비밀번호와 다르게 정하세요'; return; }
+  if (!MY_EMAIL) {
+    const me = await api('/auth/v1/user', null, true, 'GET').catch(() => null);
+    MY_EMAIL = (me && me.email) || '';
+  }
+  $('acSave').disabled = true;
+  try {
+    let t;
+    try { t = await passwordLogin(MY_EMAIL, cur); }
+    catch (e) { throw new Error(/invalid_credentials|invalid login/i.test((e.code || '') + e.message) ? '지금 비밀번호가 맞지 않습니다' : authMessage(e, 'reauth')); }
+    setToken(t.access_token);
+    try { await api('/auth/v1/user', { password: a }, true, 'PUT'); }
+    catch (e) { throw new Error(authMessage(e, 'reset')); }
+    await rpc('admin_password_changed').catch(() => null);      // 서버에 기능이 없어도 비밀번호는 이미 바뀌었다
+    clear();
+    $('acDone').textContent = '비밀번호를 바꿨습니다. 다음 로그인부터 새 비밀번호를 씁니다.';
+    await loadRole();                                            // «첫 비밀번호» 띠를 내린다
+  } catch (e) {
+    clear();
+    $('acErr').textContent = e.message;
+  } finally { $('acSave').disabled = false; }
+});
 
 /* ── 팝업 관리 (POPUP_BRIEF) ────────────────────────────────────────────
    이미지는 공개 버킷 `popups` 에 **먼저** 올리고, 그 «버킷 안 경로»를 저장한다(전체 주소를 저장하지 않는다 —
@@ -2061,6 +2294,7 @@ async function enter() {
     // ⓘ GET 이다 — 예전엔 POST 로 불러 이름표가 늘 비어 있었다
     const me = await api('/auth/v1/user', null, true, 'GET').catch(() => null);
     if (me && me.email) MY_EMAIL = me.email;
+    $('acEmailHint').value = MY_EMAIL;
     $('who').textContent = MY_EMAIL;
   } catch { /* 이름표일 뿐이다. 없어도 콘솔은 돈다 */ }
   await refresh();
