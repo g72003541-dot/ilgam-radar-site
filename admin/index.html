@@ -5,6 +5,20 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>일감레이더 · 운영자 콘솔</title>
 <!--
+  ★ 2026-09-24 · IA 개편 — 한 페이지에 쌓던 카드를 **사이드바 + 화면 9개**로 나눴다(해시 라우팅 #monitor …).
+    카드 마크업·RPC 호출·인자는 그대로 옮겼다. 화면은 처음 열 때 부르고, [새로고침]은 지금 화면만 다시 부른다.
+    역할 판정은 여전히 서버 — 사이드바에서 숨기는 건 편의, 직접 들어오면 거부 문구만 뜬다.
+    회귀: `node admin/tests/console_ia.cjs` (가짜 응답 · 실서버 호출 0)
+  ★ 2026-09-24 · 좁은 폭(≤820px) — 메뉴는 머리띠 햄버거의 서랍, [재인증]·[로그아웃]은 서랍 바닥,
+    [새로고침]은 맨 위에서 당겨서. 820px 초과는 그대로(사이드바 + 머리띠 버튼).
+  ★ 2026-09-24 · 로그인 = 이메일 + 비밀번호(코드 로그인 폐지). 재설정 메일 → 이 콘솔로 돌아와 새 비밀번호.
+    [재인증] = 비밀번호 다시 입력(amr 시각 갱신 · 서버의 15분 판정 그대로). 비밀번호는 코드·SQL·브라우저 어디에도 없다.
+-->
+<!--
+  ★ 2026-09-24 · Phase 1 M4 — 운영 구역(역할·재인증·서비스 제어·앱 적용 확인·발송 모니터·이상 징후·회원·감사).
+    서버 `20260924220000_ops_admin.sql` 이 없으면 운영 구역은 «적용 전» 안내만 띄우고 나머지는 예전처럼 돈다.
+-->
+<!--
   ★ 운영자 콘솔 (2026-08-14)
 
   ## 무엇을 보는 물건인가
@@ -106,36 +120,198 @@
   .step.slow .gap { color: var(--wait); font-weight: 700; }
   .center { max-width: 380px; margin: 12vh auto; }
   .err { color: var(--flag); font-size: 13px; min-height: 18px; }
+  button.link { border: 0; background: none; padding: 4px 0; color: var(--accent); text-decoration: underline; font-size: 13.5px; }
+  #loginBox .note, #forgotBox .note { margin: 0; }
   .stack > * + * { margin-top: 10px; }
+  /* ── 운영(M4) ── */
+  select, textarea {
+    font: inherit; font-size: 14px; padding: 8px 10px; border-radius: 9px;
+    border: 1px solid var(--line); background: var(--bg); color: var(--ink);
+  }
+  textarea { width: 100%; min-height: 56px; resize: vertical; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .row > label { font-size: 12.5px; color: var(--mut); }
+  .note { font-size: 12.5px; color: var(--mut); margin: 8px 0 0; }
+  .denied { color: var(--mut); font-size: 13px; }
+  .role { font-size: 12px; padding: 3px 9px; border-radius: 99px; border: 1px solid var(--accent); color: var(--accent); }
+  button.danger { border-color: var(--flag); color: var(--flag); }
+  .ops-title { grid-column: 1 / -1; font-size: 13px; color: var(--mut); margin: 6px 2px -4px; letter-spacing: .02em; }
+  /* ── 사이드바 + 화면 (IA 개편) — 색은 위 토큰 그대로 ── */
+  [hidden] { display: none !important; }
+  header { min-height: 64px; }
+  main#app { padding: 0; max-width: none; }
+  .workspace { display: grid; grid-template-columns: 232px minmax(0, 1fr); min-height: calc(100vh - var(--head-h, 72px)); }
+  .sidebar {
+    background: var(--card); border-right: 1px solid var(--line); padding: 26px 16px 20px;
+    position: sticky; top: var(--head-h, 72px); height: calc(100vh - var(--head-h, 72px));
+    display: flex; flex-direction: column; overflow-y: auto;
+  }
+  .brand { display: flex; align-items: center; gap: 12px; font-weight: 700; padding: 0 10px 18px; }
+  .brand small { display: block; font-size: 11.5px; font-weight: 400; color: var(--mut); margin-top: 2px; }
+  .brand-mark { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center;
+                background: var(--go); color: var(--card); font-weight: 800; font-size: 18px; flex: none; }
+  .nav-group { font-size: 11.5px; color: var(--mut); margin: 18px 12px 6px; }
+  #nav a { display: flex; align-items: center; gap: 12px; padding: 11px 12px; margin: 2px 0; border-radius: 9px;
+           color: var(--mut); text-decoration: none; font-size: 14px; font-weight: 600; }
+  #nav a:hover { background: var(--bg); color: var(--ink); }
+  #nav a[aria-current="page"] { background: color-mix(in srgb, var(--go) 12%, transparent); color: var(--go); font-weight: 700; }
+  .nav-dot { width: 8px; height: 8px; border: 1.5px solid currentColor; border-radius: 50%; flex: none; }
+  #nav a[aria-current="page"] .nav-dot { background: currentColor; }
+  .sidebar-foot { margin-top: auto; padding: 20px 10px 0; font-size: 11.5px; color: var(--mut); }
+  .workspace-main { padding: 30px clamp(18px, 3vw, 44px) 56px; min-width: 0; max-width: 1320px; width: 100%; }
+  .crumb { font-size: 12px; color: var(--mut); margin-bottom: 14px; }
+  .page-title { font-size: 28px; letter-spacing: -.04em; margin: 0; outline: none; }
+  .page-desc { color: var(--mut); font-size: 14px; margin: 8px 0 14px; }
+  .workspace-main .ops-title { margin: 0 0 20px; }
+  .page > .card { min-width: 0; }
+  #pageDeny { color: var(--mut); }
+  .task-links { grid-column: 1 / -1; display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+  .task-links a { display: block; padding: 20px 22px; border: 1px solid var(--line); border-radius: 14px;
+                  background: var(--card); color: var(--ink); text-decoration: none; }
+  .task-links a:hover { border-color: var(--go); }
+  .task-links small { font-size: 12px; color: var(--mut); }
+  .task-links strong { display: flex; justify-content: space-between; font-size: 16px; margin: 8px 0 10px; }
+  .task-links strong span { color: var(--go); }
+  .task-links p { margin: 0; font-size: 12.5px; color: var(--mut); }
+  #page-overview > .card, #page-appeals > .card, #page-restrictions > .card, #page-feedback > .card, #page-popups > .card,
+  #page-members > .card, #page-control > .card, #page-crashes > .card, #page-audit > .card { grid-column: 1 / -1; }
+  details.help { font-size: 12.5px; color: var(--mut); margin: 4px 0 14px; }
+  details.help summary { cursor: pointer; width: fit-content; }
+  details.help .why { margin: 8px 0 0; padding: 10px 12px; background: var(--bg); border-radius: 8px; }
+  details.compose { margin-top: 16px; border: 1px solid var(--line); border-radius: 11px; padding: 12px 14px; }
+  details.compose > summary { cursor: pointer; font-weight: 600; color: var(--go); }
+  a.kpi { color: inherit; text-decoration: none; }
+  .nav-count { margin-left: auto; min-width: 22px; padding: 1px 7px; border-radius: 999px; font-size: 11.5px;
+               font-weight: 700; text-align: center; background: var(--flag); color: var(--card); }
+  /* 팝업 관리 — 미리보기는 앱 카드와 같은 비율(3:4) · 아래 버튼 줄 */
+  .pop-edit { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 24px; align-items: start; }
+  .pop-phone { background: rgb(0 0 0 / .45); border-radius: 18px; padding: 36px 22px; }
+  .pop-card { background: var(--card); border-radius: 14px; overflow: hidden; }
+  .pop-img { aspect-ratio: 3 / 4; display: grid; place-items: center; background: var(--bg); text-align: center; padding: 0; }
+  .pop-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .pop-btns { display: flex; align-items: center; border-top: 1px solid var(--line); }
+  .pop-btns span { flex: 1; text-align: center; padding: 13px 4px; font-size: 14px; }
+  .pop-btns span + span { border-left: 1px solid var(--line); }
+  .pop-btns .muted { color: var(--mut); }
+  .pop-thumb { width: 54px; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 6px; border: 1px solid var(--line); display: block; }
+  @media (max-width: 1000px) { .pop-edit { grid-template-columns: 1fr; } .pop-phone { max-width: 320px; } }
+  .fb-item { border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; }
+  .fb-item.unread { border-color: var(--accent); }
+  .fb-item h3 { font-size: 15px; margin: 6px 0 4px; }
+  .fb-body { white-space: pre-wrap; margin: 8px 0; }
+  .fb-shots { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+  .fb-shots a { display: block; width: 120px; height: 120px; border-radius: 9px; overflow: hidden;
+                border: 1px solid var(--line); background: var(--bg); }
+  .fb-shots img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .fb-answer { margin: 8px 0; padding: 10px 12px; border-radius: 9px; background: color-mix(in srgb, var(--go) 10%, transparent); }
+  a.kpi:hover { background: var(--bg); }
+  /* 넓은 폭에는 없는 것 — 햄버거·서랍 머리/바닥·가림막·당김 표시 */
+  .menu-btn, .t-narrow, .drawer-head, .drawer-actions, #scrim { display: none; }
+  /*
+   * 좁은 폭(≤820px) — 메뉴는 머리띠의 햄버거 → 왼쪽 서랍. [새로고침]은 맨 위에서 당겨서.
+   * [재인증]·[로그아웃]은 서랍 바닥. 서랍이 닫혀 있으면 visibility:hidden 이라 탭 순서에도 안 잡힌다.
+   */
+  @media (max-width: 820px) {
+    header { gap: 8px; padding: 8px 12px; min-height: 60px; flex-wrap: nowrap; }
+    .menu-btn { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; background: transparent; color: var(--ink); }
+    .t-wide { display: none; }
+    .t-narrow { display: inline; }
+    header h1 { font-size: 17px; white-space: nowrap; }
+    #who, #reauth, #reload, #out, header .spacer { display: none !important; }
+    .workspace { display: block; }
+    .sidebar {
+      position: fixed; top: 0; left: 0; bottom: 0; z-index: 40; width: min(340px, 88vw); height: 100dvh;
+      padding: 0; border-right: 1px solid var(--line); transform: translateX(-100%); visibility: hidden;
+      transition: transform .2s ease, visibility 0s linear .2s;   /* 닫을 때: 밀려 나간 뒤에 숨긴다 */
+    }
+    body.menu-open .sidebar { transform: none; visibility: visible; transition: transform .2s ease, visibility 0s; }   /* 열 때: 바로 보여 초점이 들어간다 */
+    body.menu-open { overflow: hidden; }
+    body.menu-open #scrim { display: block; position: fixed; inset: 0; z-index: 35; background: rgb(0 0 0 / .4); }
+    .brand, .sidebar-foot { display: none; }
+    .drawer-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 12px 12px 20px;
+                   border-bottom: 1px solid var(--line); min-height: 64px; flex: none; }
+    .drawer-head button { width: 44px; height: 44px; padding: 0; border: 0; background: transparent; font-size: 18px; }
+    #nav { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 16px 16px; }
+    #nav a { min-height: 44px; }
+    .drawer-actions { display: grid; gap: 8px; padding: 16px 20px calc(16px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); flex: none; }
+    .drawer-actions button { text-align: left; min-height: 44px; }
+    /* 브라우저의 «당겨서 페이지 다시 읽기»와 겹치지 않게 — 우리 새로고침은 지금 화면만 다시 부른다 */
+    html, body { overscroll-behavior-y: contain; }
+    #ptr { position: fixed; left: 50%; top: calc(var(--head-h, 60px) - 44px); z-index: 9; transform: translate(-50%, 0);
+           padding: 9px 16px; border-radius: 999px; background: var(--card); border: 1px solid var(--line);
+           box-shadow: 0 4px 18px rgb(0 0 0 / .12); font-size: 13px; white-space: nowrap; pointer-events: none; }
+    .workspace-main { padding: 20px 16px 40px; }
+    .page-title { font-size: 24px; }
+    .page .card { overflow-x: auto; }
+  }
 </style>
 </head>
 <body>
 
 <header>
-  <h1>일감레이더 · 운영자 콘솔</h1>
+  <button class="menu-btn" id="menuBtn" type="button" aria-label="메뉴 열기" aria-controls="sidebar" aria-expanded="false" hidden>
+    <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+  </button>
+  <h1><span class="t-wide">일감레이더 · 운영자 콘솔</span><span class="t-narrow">일감레이더.admin</span></h1>
   <span class="muted" id="who"></span>
+  <span class="role" id="roleBadge" hidden></span>
+  <button id="reauth" hidden title="민감한 작업(서비스 정지·제재·역할 변경)은 15분 안에 비밀번호를 다시 입력해야 합니다">재인증</button>
   <span class="spacer"></span>
   <button id="reload">새로고침</button>
   <button id="out">로그아웃</button>
 </header>
 
-<!-- ── 로그인 ─────────────────────────────────────────────────────────────
-     앱과 **같은 계정**으로 들어온다. 콘솔 전용 계정을 따로 만들지 않는다 —
-     그런 건 관리가 안 되고, 결국 메모장에 적히게 된다.
-
-     ★ 6자리 코드 → **비밀번호**로 바꿨다 (2026-09-09). 메일이 늦게 오거나 안 와서
-       로그인 자체가 막혔다. 비밀번호는 **서버 계정에만** 있고 이 파일에는 없다 —
-       공개 저장소에 올라가는 파일이라 여기 적으면 자물쇠 옆에 열쇠를 붙이는 셈이다.
-       크롬이 기억하게 해서(`autocomplete`) «처음 한 번만 치고 그다음은 자동»으로 만든다. -->
+<!-- ── 로그인 (2026-09-24 · 이메일+비밀번호) ────────────────────────────────
+     앱과 **같은 계정**(Supabase Auth)으로 들어온다. 콘솔 전용 계정을 따로 만들지 않는다.
+     ⛔ 비밀번호는 이 파일·SQL 어디에도 없다 — 운영자가 [비밀번호 재설정] 메일로 **직접** 정한다.
+        브라우저에도 저장하지 않는다(받은 토큰만 저장). 입력칸은 쓰고 나면 바로 비운다.        -->
 <main id="gate" hidden>
-  <div class="card center stack">
+  <form class="card center stack" id="loginBox" autocomplete="on">
     <h2>운영자 로그인</h2>
-    <p class="why">운영자 이메일과 비밀번호로 들어갑니다.</p>
-    <input id="email" type="email" value="g72003541@gmail.com" autocomplete="username">
-    <input id="pw" type="password" placeholder="비밀번호" autocomplete="current-password">
-    <button class="primary" id="go" style="width:100%">들어가기</button>
-    <div class="err" id="gateErr"></div>
-  </div>
+    <p class="why">
+      앱과 같은 계정의 이메일과 비밀번호로 들어옵니다.
+      비밀번호를 정한 적이 없거나 잊었으면 [비밀번호 재설정]으로 메일을 받아 직접 정하세요.
+    </p>
+    <input id="email" type="email" placeholder="이메일" autocomplete="username" required>
+    <input id="password" type="password" placeholder="비밀번호" autocomplete="current-password" required>
+    <button class="primary" id="go" type="submit" style="width:100%">로그인</button>
+    <div class="err" id="gateErr" role="alert"></div>
+    <button class="link" id="forgot" type="button">비밀번호 재설정</button>
+  </form>
+
+  <form class="card center stack" id="forgotBox" hidden>
+    <h2>비밀번호 재설정</h2>
+    <p class="why">
+      운영자 이메일로 재설정 메일을 보냅니다. 메일의 링크를 누르면 이 콘솔로 돌아와 새 비밀번호를 정합니다.
+      링크는 한 번만 쓸 수 있고 오래 두면 만료됩니다.
+    </p>
+    <input id="fEmail" type="email" placeholder="이메일" autocomplete="username" required>
+    <button class="primary" id="fSend" type="submit" style="width:100%">재설정 메일 받기</button>
+    <div class="note" id="fMsg" role="status"></div>
+    <details class="help">
+      <summary>링크를 눌렀는데 이 화면으로 돌아오지 않았다면</summary>
+      <p class="why">
+        콘솔을 파일로 열었거나 이 주소가 서버의 «허용된 이동 주소(Redirect URLs)»에 없으면 다른 페이지로 갑니다.
+        그때 열린 페이지의 <b>주소창 주소 전체</b>를 복사해 여기 붙여넣으세요.
+      </p>
+      <div class="row">
+        <input id="fPaste" placeholder="https://…#access_token=…&amp;type=recovery" style="flex:1">
+        <button id="fPasteGo" type="button">이 링크로 계속</button>
+      </div>
+    </details>
+    <button class="link" id="fBack" type="button">로그인으로 돌아가기</button>
+  </form>
+
+  <form class="card center stack" id="resetBox" hidden>
+    <h2>새 비밀번호 정하기</h2>
+    <p class="why"><b id="rEmail"></b> 계정의 새 비밀번호입니다. 8자 이상. 저장하면 새 비밀번호로 다시 로그인합니다.</p>
+    <input id="rEmailHint" type="email" autocomplete="username" hidden>
+    <input id="rPw" type="password" placeholder="새 비밀번호 (8자 이상)" autocomplete="new-password" required>
+    <input id="rPw2" type="password" placeholder="새 비밀번호 한 번 더" autocomplete="new-password" required>
+    <button class="primary" id="rSave" type="submit" style="width:100%">비밀번호 저장</button>
+    <div class="err" id="rErr" role="alert"></div>
+    <button class="link" id="rBack" type="button">취소하고 로그인으로</button>
+  </form>
 </main>
 
 <!-- ── 설정이 없을 때 (config.js 를 아직 안 만든 기기) ───────────────────── -->
@@ -154,95 +330,477 @@
 </main>
 
 <main id="app" hidden>
-  <div id="banner" class="card" hidden
-       style="border-color:var(--flag); color:var(--flag); margin-bottom:16px;"></div>
-  <div class="grid">
-
-    <div class="card" style="grid-column: 1 / -1;">
-      <h2>지금</h2>
-      <p class="why">
-        가입자보다 <b>발송을 켠 사람</b>이 진짜 숫자다 — 이 앱에서 「쓰고 있다」는
-        열어봤다가 아니라 그림자 모드를 껐다는 뜻이다.
-      </p>
-      <div class="kpis" id="kpis"></div>
-    </div>
-
-    <div class="card">
-      <h2>온보딩 — 어디서 사라지나</h2>
-      <p class="why">앞 단계보다 뚝 떨어지는 줄이 고쳐야 할 화면이다.</p>
-      <div id="funnel"></div>
-    </div>
-
-    <div class="card">
-      <h2>권한 — 눌렀는데 못 켠 사람</h2>
-      <p class="why">
-        이 앱은 권한이 없으면 아무것도 못 한다. <b>눌렀다</b> 대비 <b>켜졌다</b>가 낮으면
-        그건 설명 문구의 문제다.
-      </p>
-      <table id="perm"></table>
-    </div>
-
-    <div class="card">
-      <h2>어디서 끝나나</h2>
-      <p class="why">
-        세션의 <b>마지막 줄</b>을 센다. 온보딩을 넘긴 뒤의 이탈은 여기서만 보인다.
-      </p>
-      <div class="rows"><table id="stuck"></table></div>
-    </div>
-
-    <div class="card">
-      <h2>화면별 쓰임</h2>
-      <p class="why">아무도 안 가는 탭이 있으면 그건 지울 후보다.</p>
-      <table id="screens"></table>
-    </div>
-
-    <div class="card">
-      <h2>그림자 → 실제 발송</h2>
-      <p class="why">며칠 만에 켜나. 안 켜고 남으면 제품이 신뢰를 못 얻은 것이다.</p>
-      <table id="shadow"></table>
-    </div>
-
-    <div class="card">
-      <h2>신고함</h2>
-      <p class="why">
-        번호 뒤 4자리와 사유만 나온다. <b>문자 본문은 이 화면에 없다</b> — 절대 규칙 2.
-      </p>
-      <div class="rows"><table id="reports"></table></div>
-    </div>
-
-    <div class="card" style="grid-column: 1 / -1;">
-      <h2>크래시</h2>
-      <p class="why">
-        같은 것끼리 묶었다. <b>한 사람에게 20번 난 것보다 20명에게 한 번씩 난 것이 급하다</b> —
-        그래서 «사람» 으로 정렬한다. 줄을 누르면 스택이 열린다.
-      </p>
-      <div class="rows"><table id="crashes"></table></div>
-      <pre id="crashStack" style="display:none; margin-top:12px; padding:12px; font-size:12px;
-           background:var(--bg); border:1px solid var(--line); border-radius:10px;
-           overflow-x:auto; white-space:pre;"></pre>
-    </div>
-
-    <!-- ── 여정 탐색기 ──────────────────────────────────────────────────
-         숫자는 «어디서» 만 알려준다. **«왜»는 한 사람의 한 번의 실행을
-         순서대로 따라가야 보인다.**                                      -->
-    <div class="card" style="grid-column: 1 / -1;">
-      <h2>사용자 여정 탐색</h2>
-      <p class="why">
-        왼쪽에서 세션을 고르면 오른쪽에 그 사람이 겪은 순서가 그대로 나온다.
-        <b>간격이 큰 줄이 막힌 자리</b>다 — 오래 멈췄다는 게 「어려웠다」의 유일한 신호다.
-      </p>
-      <div style="display:flex; gap:10px; align-items:center; margin-bottom:12px; flex-wrap:wrap;">
-        <label style="font-size:13.5px;">
-          <input type="checkbox" id="onlyStuck" style="width:auto"> 온보딩을 못 끝낸 세션만
-        </label>
-        <span class="muted" style="font-size:12.5px;" id="sessCount"></span>
+  <!-- ══ 사이드바 + 화면 전환 (2026-09-24 IA 개편) ══════════════════════════════
+       화면은 해시(#monitor …)로 고른다 — 새로고침·뒤로 가기가 그 화면을 지킨다.
+       사이드바에서 숨기는 건 편의다. ⛔ **판정은 서버가 한다** — 직접 들어와도 서버 함수가 첫 줄에서 막는다. -->
+  <div class="workspace">
+    <aside class="sidebar" id="sidebar" aria-label="관리 메뉴">
+      <div class="drawer-head"><strong>일감레이더.admin</strong><button id="menuClose" type="button" aria-label="메뉴 닫기">✕</button></div>
+      <div class="brand"><span class="brand-mark" aria-hidden="true">R</span><div>일감레이더<small>관리자 워크스페이스</small></div></div>
+      <nav id="nav" aria-label="화면">
+        <p class="nav-group">운영</p>
+        <a href="#overview" data-page="overview"><span class="nav-dot" aria-hidden="true"></span>운영 개요</a>
+        <a href="#monitor" data-page="monitor"><span class="nav-dot" aria-hidden="true"></span>발송 모니터</a>
+        <a href="#members" data-page="members"><span class="nav-dot" aria-hidden="true"></span>회원 관리</a>
+        <a href="#restrictions" data-page="restrictions"><span class="nav-dot" aria-hidden="true"></span>이용 제한</a>
+        <a href="#appeals" data-page="appeals"><span class="nav-dot" aria-hidden="true"></span>이의신청·신고</a>
+        <p class="nav-group">서비스</p>
+        <a href="#analytics" data-page="analytics"><span class="nav-dot" aria-hidden="true"></span>이용 분석</a>
+        <a href="#crashes" data-page="crashes"><span class="nav-dot" aria-hidden="true"></span>오류·크래시</a>
+        <a href="#feedback" data-page="feedback"><span class="nav-dot" aria-hidden="true"></span>불편 신고<span class="nav-count" id="fbNavCount" hidden></span></a>
+        <a href="#popups" data-page="popups"><span class="nav-dot" aria-hidden="true"></span>팝업 관리</a>
+        <p class="nav-group">관리</p>
+        <a href="#control" data-page="control"><span class="nav-dot" aria-hidden="true"></span>서비스 제어</a>
+        <a href="#audit" data-page="audit"><span class="nav-dot" aria-hidden="true"></span>감사 기록</a>
+      </nav>
+      <div class="sidebar-foot">운영자 전용 · 접근 기록 관리</div>
+      <div class="drawer-actions">
+        <button id="reauthM" type="button" hidden>재인증</button>
+        <button id="outM" type="button">로그아웃</button>
       </div>
-      <div style="display:grid; gap:16px; grid-template-columns: minmax(320px, 1fr) minmax(320px, 1fr);">
-        <div class="rows"><table id="sessions"></table></div>
-        <div class="rows" id="journey"><p class="muted">왼쪽에서 세션을 고르세요.</p></div>
-      </div>
-    </div>
+    </aside>
+    <div id="scrim" aria-hidden="true"></div>
 
+    <div class="workspace-main">
+      <div id="ptr" role="status" aria-live="polite" hidden></div>
+      <div id="banner" class="card" hidden
+           style="border-color:var(--flag); color:var(--flag); margin-bottom:16px;"></div>
+      <div class="crumb">워크스페이스 / <span id="crumb"></span></div>
+      <h2 class="page-title" id="pageTitle" tabindex="-1"></h2>
+      <p class="page-desc" id="pageDesc"></p>
+      <div class="ops-title">운영 — 역할: <b id="roleText">확인 중</b> · <span id="opsNote"></span></div>
+      <div class="card" id="pageDeny" hidden></div>
+
+      <section class="grid page" id="page-overview" hidden>
+        <div class="task-links" id="taskLinks">
+          <a href="#monitor"><small>발송 운영</small><strong>발송 결과 확인 <span aria-hidden="true">↗</span></strong><p>실패·미확인 결과와 이상 징후</p></a>
+          <a href="#appeals"><small>사용자 지원</small><strong>접수된 요청 검토 <span aria-hidden="true">↗</span></strong><p>이의신청 검토와 답변</p></a>
+          <a href="#crashes"><small>서비스 품질</small><strong>오류 확인 <span aria-hidden="true">↗</span></strong><p>영향받은 사용자와 오류 상세</p></a>
+        </div>
+
+        <div class="card" id="cardNow" style="grid-column: 1 / -1;">
+          <h2>지금</h2>
+          <details class="help"><summary>확인 기준 및 운영 안내</summary>
+          <p class="why">
+            가입자보다 <b>발송을 켠 사람</b>이 진짜 숫자다 — 이 앱에서 「쓰고 있다」는
+            열어봤다가 아니라 그림자 모드를 껐다는 뜻이다.
+          </p>
+          </details>
+          <div class="kpis" data-now></div>
+        </div>
+
+        <div class="card" id="cardRelief" data-roles="owner,support,analyst">
+          <h2>구제 지표</h2>
+          <details class="help"><summary>확인 기준 및 운영 안내</summary>
+          <p class="why">
+            이의신청 첫 검토 목표 — <b>평일 19–23시 하루 한 번</b>. 24시간 대응을 약속하지 않는다.
+            «해제 전달 대기»는 서버에서 풀었지만 폰이 아직 못 받은 것 — 앱을 열어야 적용된다.
+          </p>
+          </details>
+          <div class="kpis" data-relief></div>
+        </div>
+      </section>
+
+      <section class="grid page" id="page-monitor" hidden>
+        <div class="card" id="cardMonitor" data-roles="owner,support,analyst" style="grid-column: 1 / -1;">
+          <h2>발송 모니터</h2>
+          <details class="help"><summary>확인 기준 및 운영 안내</summary>
+          <p class="why">
+            전 회원 발송 <b>메타데이터</b>다 — 시각·종류·자동/수동·결과·수신자 해시와 뒤 4자리. <b>본문은 없다.</b>
+            성공률 분모는 «성공 + 확인된 실패»이고, 미확인·결과 미지원(구버전)은 <b>따로</b> 센다.
+            «성공»은 통신사에 넘어갔다는 뜻이지 상대가 읽었다는 뜻이 아니다.
+          </p>
+          </details>
+          <div class="row" style="margin-bottom:12px;">
+            <select id="monRange">
+              <option value="1">오늘(24시간)</option>
+              <option value="7" selected>최근 7일</option>
+              <option value="30">최근 30일</option>
+            </select>
+            <input id="monUser" placeholder="회원 ID 앞 8자(선택)" style="width:190px">
+            <button id="monGo">보기</button>
+          </div>
+          <div class="kpis" id="monStats"></div>
+          <div class="rows" style="margin-top:12px;"><table id="monList"></table></div>
+          <div class="row" style="margin-top:8px;"><button id="monMore" hidden>더 보기</button></div>
+        </div>
+
+        <div class="card" id="cardAnom" data-roles="owner,support">
+          <h2>이상 징후 — 관측 신호</h2>
+          <details class="help"><summary>확인 기준 및 운영 안내</summary>
+          <p class="why">
+            앱이 올린 기록에서 계산한다 — <b>네트워크를 끊으면 안 보이는 자기보고</b>다.
+            자동 제재에 쓰지 않는다. 가족·공용 기기, 시간 오차, 재전송 로그를 먼저 가린 뒤 사람이 판단한다.
+          </p>
+          </details>
+          <div class="rows"><table id="anom"></table></div>
+        </div>
+      </section>
+
+      <section class="grid page" id="page-members" hidden>
+        <div class="card" id="cardMembers" data-roles="owner,support">
+          <h2>회원</h2>
+          <details class="help"><summary>확인 기준 및 운영 안내</summary>
+          <p class="why">마스킹된 최소 항목만. 이름·본인 번호·문자 양식은 싣지 않는다.</p>
+          </details>
+          <div class="row" style="margin-bottom:12px;">
+            <input id="memUser" placeholder="회원 ID 앞 8자" style="width:170px">
+            <button id="memPrior">이전 제재 확인</button><span class="note" id="memPriorOut" style="margin:0"></span>
+          </div>
+          <div class="rows"><table id="members"></table></div>
+        </div>
+      </section>
+
+      <section class="grid page" id="page-restrictions" hidden>
+        <div class="card" id="cardRestrict" data-roles="owner,support" style="grid-column: 1 / -1;">
+          <h2>이용 제한</h2>
+          <details class="help"><summary>확인 기준 및 운영 안내</summary>
+          <p class="why">
+            제재는 기한이 있거나 <b>무기한을 명시</b>해야 걸린다. 계정을 지워도 «번호 해시 + 사유·기간»은 남는다(D4) —
+            같은 번호로 다시 가입해도 <b>자동으로 걸지 않는다</b>. «이전 제재»는 사람이 참고할 숫자다.
+          </p>
+          </details>
+          <div class="row" style="margin-bottom:10px;">
+            <label><input type="checkbox" id="rsActive" checked style="width:auto"> 걸려 있는 것만</label>
+            <button id="rsGo">보기</button>
+          </div>
+          <div class="rows"><table id="restrictions"></table></div>
+          <details class="compose" id="rsComposer">
+            <summary>＋ 새 이용 제한 등록</summary>
+          <div class="stack" id="rsForm" style="margin-top:14px;">
+            <div class="row">
+              <label>회원 ID 앞 8자</label><input id="rsUser" style="width:140px">
+              <button id="rsPrior">이전 제재 확인</button><span class="note" id="rsPriorOut"></span>
+            </div>
+            <div class="row">
+              <label>범위</label>
+              <select id="rsScope">
+                <option value="warn">경고(발송 그대로)</option>
+                <option value="auto_send" selected>자동 발송 제한</option>
+                <option value="all_send">문자 발송 제한(수동 포함)</option>
+                <option value="service">서비스 이용 제한</option>
+              </select>
+              <label>사유</label>
+              <select id="rsCode">
+                <option value="spam_volume">짧은 시간에 너무 많은 문자</option>
+                <option value="harassment_same_target">같은 사람에게 반복 발송</option>
+                <option value="limit_evasion">발송 한도 우회</option>
+                <option value="tampered_app">변조된 앱</option>
+                <option value="fraud_report">구인자 신고 확인</option>
+                <option value="terms_other">기타 약관 위반</option>
+              </select>
+              <label>약관 조항</label><input id="rsClause" placeholder="예: 7조 2항" style="width:110px">
+            </div>
+            <div class="row">
+              <label>끝</label><input id="rsEnds" type="datetime-local" style="width:210px">
+              <label><input type="checkbox" id="rsPerm" style="width:auto"> 무기한(해제해야 끝남)</label>
+              <label>증거 발송 ID</label><input id="rsEvid" placeholder="12, 34 (선택)" style="width:140px">
+              <label>신고 ID</label><input id="rsReport" type="number" style="width:90px">
+            </div>
+            <textarea id="rsReason" placeholder="내부 메모 — 사용자에게 보이지 않는다. 감사 기록에 남는다(필수)"></textarea>
+            <div class="row">
+              <button class="primary" id="rsPreview">미리보기</button>
+              <button class="danger" id="rsApply" hidden>이대로 걸기</button>
+            </div>
+          </div>
+          </details>
+          <div class="err" id="rsErr"></div>
+          <div class="note" id="rsPlan"></div>
+        </div>
+      </section>
+
+      <section class="grid page" id="page-appeals" hidden>
+        <div class="card" id="cardReliefAp" data-roles="owner,support,analyst">
+          <h2>구제 지표</h2>
+          <div class="kpis" data-relief></div>
+        </div>
+
+        <div class="card" id="cardAppeals" data-roles="owner,support" style="grid-column: 1 / -1;">
+          <h2>이의신청</h2>
+          <details class="help"><summary>확인 기준 및 운영 안내</summary>
+          <p class="why">
+            사용자가 쓴 이의신청 글이다(문자 본문 아님). <b>검토 시작</b>을 눌러야 «사람이 봤다»로 센다 — 자동 접수는 검토가 아니다.
+            «해제»로 답하려면 먼저 제재를 풀어야 한다(최고관리자) — 말만 풀고 폰은 계속 막히는 일이 없게.
+          </p>
+          </details>
+          <div class="row" style="margin-bottom:10px;">
+            <label><input type="checkbox" id="apOpen" checked style="width:auto"> 열린 것만</label>
+            <button id="apGo">보기</button>
+          </div>
+          <div id="appeals"></div>
+        </div>
+
+        <div class="card" id="cardReports">
+          <h2>신고함</h2>
+          <details class="help"><summary>확인 기준 및 운영 안내</summary>
+          <p class="why">
+            번호 뒤 4자리와 사유만 나온다. <b>문자 본문은 이 화면에 없다</b> — 절대 규칙 2.
+          </p>
+          </details>
+          <div class="rows"><table id="reports"></table></div>
+        </div>
+      </section>
+
+      <section class="grid page" id="page-analytics" hidden>
+        <div class="card" id="cardNowAn" style="grid-column: 1 / -1;">
+          <h2>지금</h2>
+          <details class="help"><summary>확인 기준 및 운영 안내</summary>
+          <p class="why">
+            가입자보다 <b>발송을 켠 사람</b>이 진짜 숫자다 — 이 앱에서 「쓰고 있다」는
+            열어봤다가 아니라 그림자 모드를 껐다는 뜻이다.
+          </p>
+          </details>
+          <div class="kpis" data-now></div>
+        </div>
+
+        <div class="card" id="cardFunnel">
+          <h2>온보딩 — 어디서 사라지나</h2>
+          <details class="help"><summary>확인 기준 및 운영 안내</summary>
+          <p class="why">앞 단계보다 뚝 떨어지는 줄이 고쳐야 할 화면이다.</p>
+          </details>
+          <div id="funnel"></div>
+        </div>
+
+        <div class="card" id="cardPerm">
+          <h2>권한 — 눌렀는데 못 켠 사람</h2>
+          <details class="help"><summary>확인 기준 및 운영 안내</summary>
+          <p class="why">
+            이 앱은 권한이 없으면 아무것도 못 한다. <b>눌렀다</b> 대비 <b>켜졌다</b>가 낮으면
+            그건 설명 문구의 문제다.
+          </p>
+          </details>
+          <table id="perm"></table>
+        </div>
+
+        <div class="card" id="cardStuck">
+          <h2>어디서 끝나나</h2>
+          <details class="help"><summary>확인 기준 및 운영 안내</summary>
+          <p class="why">
+            세션의 <b>마지막 줄</b>을 센다. 온보딩을 넘긴 뒤의 이탈은 여기서만 보인다.
+          </p>
+          </details>
+          <div class="rows"><table id="stuck"></table></div>
+        </div>
+
+        <div class="card" id="cardScreens">
+          <h2>화면별 쓰임</h2>
+          <details class="help"><summary>확인 기준 및 운영 안내</summary>
+          <p class="why">아무도 안 가는 탭이 있으면 그건 지울 후보다.</p>
+          </details>
+          <table id="screens"></table>
+        </div>
+
+        <div class="card" id="cardShadow">
+          <h2>그림자 → 실제 발송</h2>
+          <details class="help"><summary>확인 기준 및 운영 안내</summary>
+          <p class="why">며칠 만에 켜나. 안 켜고 남으면 제품이 신뢰를 못 얻은 것이다.</p>
+          </details>
+          <table id="shadow"></table>
+        </div>
+
+        <!-- ── 여정 탐색기 ──────────────────────────────────────────────────
+             숫자는 «어디서» 만 알려준다. **«왜»는 한 사람의 한 번의 실행을
+             순서대로 따라가야 보인다.**                                      -->
+
+        <div class="card" id="cardJourney" style="grid-column: 1 / -1;">
+          <h2>사용자 여정 탐색</h2>
+          <details class="help"><summary>확인 기준 및 운영 안내</summary>
+          <p class="why">
+            왼쪽에서 세션을 고르면 오른쪽에 그 사람이 겪은 순서가 그대로 나온다.
+            <b>간격이 큰 줄이 막힌 자리</b>다 — 오래 멈췄다는 게 「어려웠다」의 유일한 신호다.
+          </p>
+          </details>
+          <div style="display:flex; gap:10px; align-items:center; margin-bottom:12px; flex-wrap:wrap;">
+            <label style="font-size:13.5px;">
+              <input type="checkbox" id="onlyStuck" style="width:auto"> 온보딩을 못 끝낸 세션만
+            </label>
+            <span class="muted" style="font-size:12.5px;" id="sessCount"></span>
+          </div>
+          <div style="display:grid; gap:16px; grid-template-columns: minmax(320px, 1fr) minmax(320px, 1fr);">
+            <div class="rows"><table id="sessions"></table></div>
+            <div class="rows" id="journey"><p class="muted">왼쪽에서 세션을 고르세요.</p></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="grid page" id="page-crashes" hidden>
+        <div class="card" id="cardCrashes" style="grid-column: 1 / -1;">
+          <h2>크래시</h2>
+          <details class="help"><summary>확인 기준 및 운영 안내</summary>
+          <p class="why">
+            같은 것끼리 묶었다. <b>한 사람에게 20번 난 것보다 20명에게 한 번씩 난 것이 급하다</b> —
+            그래서 «사람» 으로 정렬한다. 줄을 누르면 스택이 열린다.
+          </p>
+          </details>
+          <div class="rows"><table id="crashes"></table></div>
+          <pre id="crashStack" style="display:none; margin-top:12px; padding:12px; font-size:12px;
+               background:var(--bg); border:1px solid var(--line); border-radius:10px;
+               overflow-x:auto; white-space:pre;"></pre>
+        </div>
+      </section>
+
+      <section class="grid page" id="page-feedback" hidden>
+        <!-- ══ 불편 신고 (오픈 베타 · 2026-09-24) ════════════════════════════════
+             이용자가 앱에서 보낸 불편 — 제목·내용·스크린샷. 읽으면 [읽음 처리], 답하면 이용자 앱 «내 신고»에 그대로 보인다.
+             구인자 신고(이의신청·신고 화면)와 다른 것이다. 지원·최고관리자만. -->
+        <div class="card" id="cardFeedback" data-roles="owner,support">
+          <h2>불편 신고</h2>
+          <details class="help"><summary>확인 기준 및 운영 안내</summary>
+          <p class="why">
+            오픈 베타 이용자가 <b>운영자에게 보내려고 쓴 글</b>이다. 스크린샷에 구인자 번호·문자 내용이 찍혀 올 수 있다 —
+            <b>밖으로 옮기거나 캡처해 두지 않는다.</b> 읽었으면 [읽음 처리]로 «읽었다»를 이용자에게 알리고,
+            답변은 이용자 앱에 그대로 보인다(고쳐 쓰면 새 글이 보이고, 감사 기록에 남는다).
+          </p>
+          </details>
+          <div class="kpis" id="fbCounts" style="margin-bottom:14px;"></div>
+          <div class="row" style="margin-bottom:12px;">
+            <label for="fbFilter">보기</label>
+            <select id="fbFilter">
+              <option value="received" selected>새 것(안 읽음)</option>
+              <option value="read">읽음 — 답 안 함</option>
+              <option value="answered">답변함</option>
+              <option value="">전체</option>
+            </select>
+            <button id="fbGo">보기</button>
+          </div>
+          <div id="fbList"></div>
+        </div>
+      </section>
+
+      <section class="grid page" id="page-popups" hidden>
+        <!-- ══ 팝업 관리 (POPUP_BRIEF · 2026-09-25) ══════════════════════════════
+             앱 메인에 뜨는 공지·이벤트 이미지. 콘텐츠·최고관리자만. 이미지는 공개 버킷 `popups` —
+             누구나 받을 수 있는 그림이다(개인정보·내부 자료를 넣지 않는다). -->
+        <div class="card" id="cardPopups" data-roles="owner,content">
+          <h2>팝업 목록</h2>
+          <details class="help"><summary>확인 기준 및 운영 안내</summary>
+          <p class="why">
+            앱은 <b>켜질 때 한 번</b> 받아 가서, 대상·기간·버전이 맞는 것 중 <b>우선순위가 가장 높은 하나</b>를 띄운다.
+            게스트(로그인 안 함)도 받는다 — 이미지는 <b>공개 주소</b>라 누구나 볼 수 있다. 개인정보·내부 자료를 넣지 않는다.
+            자동 발송 10초 예고가 떠 있으면 앱이 팝업을 미룬다.
+          </p>
+          </details>
+          <div class="row" style="margin-bottom:12px;">
+            <button class="primary" id="popNew">＋ 새 팝업</button>
+            <span class="note" id="popMsg" style="margin:0"></span>
+          </div>
+          <div class="rows"><table id="popList"></table></div>
+        </div>
+
+        <div class="card" id="cardPopupForm" hidden>
+          <h2 id="popFormTitle">새 팝업</h2>
+          <div class="pop-edit">
+            <div class="stack">
+              <div class="row">
+                <label for="popFile">이미지</label>
+                <input id="popFile" type="file" accept="image/png,image/jpeg,image/webp" style="flex:1">
+              </div>
+              <p class="note" style="margin:-4px 0 0">세로 3:4 권장(예: 720×960) · PNG·JPG·WebP · 3MB 까지. 버튼(«제보하기» 등)은 그림 안에 그려 둔다 — 그림 전체가 하나의 버튼이다.</p>
+              <div class="row"><label for="popTitle">이름</label><input id="popTitle" placeholder="운영자용 이름 — 앱엔 안 보인다" style="flex:1"></div>
+              <div class="row">
+                <label for="popType">유형</label>
+                <select id="popType"><option value="notice">공지</option><option value="event">이벤트</option><option value="update">업데이트</option><option value="survey">설문</option></select>
+                <label for="popAudience">대상</label>
+                <select id="popAudience"><option value="all">전체</option><option value="guest">게스트(로그인 안 함)</option><option value="member">회원</option></select>
+              </div>
+              <div class="row">
+                <label for="popLinkKind">누르면</label>
+                <select id="popLinkKind"><option value="">닫기만</option><option value="feedback">앱의 불편 신고 열기</option><option value="url">웹 주소 열기</option></select>
+                <input id="popLink" placeholder="https://…" style="flex:1" hidden>
+              </div>
+              <div class="row">
+                <label for="popStart">게시</label><input id="popStart" type="datetime-local" style="width:210px">
+                <span class="muted">~</span><input id="popEnd" type="datetime-local" style="width:210px">
+                <span class="note" style="margin:0">비우면 바로·계속</span>
+              </div>
+              <div class="row">
+                <label for="popMin">앱 버전(versionCode)</label>
+                <input id="popMin" type="number" min="1" placeholder="최소" style="width:90px">
+                <input id="popMax" type="number" min="1" placeholder="최대" style="width:90px">
+                <label for="popPriority">우선순위</label><input id="popPriority" type="number" value="0" style="width:90px">
+              </div>
+              <div class="row">
+                <label for="popDismiss">닫기</label>
+                <select id="popDismiss"><option value="once_per_day">[오늘 그만 보기] — 하루 숨김</option><option value="once_forever">[다시 보지 않기] — 영구 숨김</option><option value="every_open">[닫기]만 — 켤 때마다</option></select>
+                <label><input type="checkbox" id="popActive" checked style="width:auto"> 켜기</label>
+              </div>
+              <textarea id="popReason" placeholder="이유 — 감사 기록에 남는다(필수)"></textarea>
+              <div class="row">
+                <button class="primary" id="popSave">저장</button>
+                <button id="popCancel">취소</button>
+              </div>
+              <div class="err" id="popErr"></div>
+            </div>
+            <div>
+              <p class="note" style="margin:0 0 8px">미리보기 — 앱에서 보이는 모양</p>
+              <div class="pop-phone" aria-label="팝업 미리보기">
+                <div class="pop-card">
+                  <div class="pop-img" id="popPreviewImg"><span class="muted">이미지를 고르면 여기 보입니다</span></div>
+                  <div class="pop-btns" id="popPreviewBtns"></div>
+                </div>
+              </div>
+              <p class="note" id="popPreviewLink"></p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="grid page" id="page-control" hidden>
+        <div class="card" id="cardControl" data-roles="owner">
+          <h2>서비스 제어</h2>
+          <details class="help" open><summary>확인 기준 및 운영 안내</summary>
+          <p class="why">
+            정지는 <b>게시</b>다 — 앱이 다음에 서버를 볼 때(앱을 열거나 발송을 준비할 때) 적용된다.
+            인터넷이 끊긴 폰에 즉시 닿는다고 약속하지 않는다. <b>이미 OS 에 넘긴 문자는 되돌릴 수 없다.</b>
+          </p>
+          </details>
+          <div id="policyNow"></div>
+          <div class="stack" style="margin-top:12px;">
+            <div class="row">
+              <label>모드</label>
+              <select id="polMode">
+                <option value="normal">정상(복구)</option>
+                <option value="notice">안내만</option>
+                <option value="pause_auto">자동 발송 중지</option>
+                <option value="pause_all">앱 내 전체 발송 중지(수동·테스트 포함)</option>
+              </select>
+              <label>버전(versionCode)</label>
+              <input id="polMin" type="number" placeholder="최소" style="width:90px">
+              <input id="polMax" type="number" placeholder="최대" style="width:90px">
+            </div>
+            <input id="polNotice" placeholder="앱에 띄울 안내(선택 · 300자)">
+            <textarea id="polReason" placeholder="이유 — 감사 기록에 남는다(필수)"></textarea>
+            <div class="row">
+              <button class="primary" id="polPreview">미리보기</button>
+              <button class="danger" id="polPublish" hidden>이대로 게시</button>
+              <span class="err" id="polErr"></span>
+            </div>
+            <div class="note" id="polPlan"></div>
+          </div>
+        </div>
+
+        <div class="card" id="cardRollout" data-roles="owner,support,analyst">
+          <h2>앱 적용 확인</h2>
+          <details class="help"><summary>확인 기준 및 운영 안내</summary>
+          <p class="why">
+            «게시됨»과 «기기가 받음»은 다르다. <b>아직 확인 안 됨을 정지 완료로 읽지 말 것.</b>
+            구버전은 이 제어를 모른다 — 설치 보고가 없는 활성 회원 수로 <b>추정</b>한다.
+          </p>
+          </details>
+          <div class="kpis" id="rollout"></div>
+        </div>
+      </section>
+
+      <section class="grid page" id="page-audit" hidden>
+        <div class="card" id="cardAudit" data-roles="owner" style="grid-column: 1 / -1;">
+          <h2>감사 기록</h2>
+          <details class="help"><summary>확인 기준 및 운영 안내</summary>
+          <p class="why">누가·언제·무엇을·왜. 고치거나 지울 수 없게 막아 두었다(DB 소유자는 예외 — «절대»라고 쓰지 않는다).</p>
+          </details>
+          <div class="rows"><table id="audit"></table></div>
+        </div>
+      </section>
+    </div>
   </div>
 </main>
 
@@ -260,26 +818,47 @@ const CFG = (() => {
 })();
 
 const $ = (id) => document.getElementById(id);
+/** 좁은 폭(≤820px) — 메뉴가 햄버거 서랍으로 들어간다 */
+const NARROW = matchMedia('(max-width: 820px)');
+const reauthWhere = () => (NARROW.matches ? '메뉴 하단 [재인증]' : '위의 [재인증]');
 const show = (id, on) => { $(id).hidden = !on; };
 
 /* ── 서버와 이야기하는 유일한 통로 ───────────────────────────────────────
    RPC 만 부른다. 표를 직접 읽지 않는다 — 무엇을 보여줄지는 **서버가 정한다.**  */
 let token = localStorage.getItem('ilgam.token') || '';
 
-async function api(path, body, auth = true) {
-  const res = await fetch(CFG.url + path, {
-    method: 'POST',
-    headers: {
-      'apikey': CFG.key,
-      'Content-Type': 'application/json',
-      ...(auth && token ? { 'Authorization': 'Bearer ' + token } : {}),
-    },
-    body: JSON.stringify(body || {}),
-  });
+async function api(path, body, auth = true, method = 'POST', bearer = null) {
+  let res;
+  try {
+    res = await fetch(CFG.url + path, {
+      method,
+      headers: {
+        'apikey': CFG.key,
+        'Content-Type': 'application/json',
+        ...(bearer || (auth && token) ? { 'Authorization': 'Bearer ' + (bearer || token) } : {}),
+      },
+      ...(method === 'GET' ? {} : { body: JSON.stringify(body || {}) }),
+    });
+  } catch {
+    // fetch 가 던졌다 = 서버에 닿지도 못했다. 서버의 «거부»와 섞지 않는다
+    const e = new Error(navigator.onLine === false
+      ? '인터넷이 끊겨 있습니다 — 연결한 뒤 다시 시도하세요'
+      : '서버에 닿지 못했습니다 — 인터넷 연결이나 서버 주소를 확인하세요');
+    e.offline = true;
+    throw e;
+  }
   const text = await res.text();
   let data = null;
   try { data = text ? JSON.parse(text) : null; } catch { data = text; }
-  if (!res.ok) throw new Error((data && (data.message || data.msg || data.error_description)) || text || res.status);
+  if (!res.ok) {
+    let msg = String((data && (data.message || data.msg || data.error_description)) || text || res.status);
+    // 서버(ops_admin.sql)의 재인증 문구는 코드 로그인 시절 것이다 — SQL 은 두고 화면에서만 바꿔 읽는다
+    msg = msg.replace('이메일 코드로 다시 들어오세요', reauthWhere() + '에서 비밀번호를 다시 입력하세요');
+    const e = new Error(msg);
+    e.status = res.status;
+    e.code = data && (data.error_code || data.code || data.error) || null;
+    throw e;
+  }
   return data;
 }
 
@@ -314,8 +893,9 @@ async function drawOverview() {
     ['7일 세션', o.sessions_7d, '앱을 켠 횟수'],
     ['신고 대기', o.reports_open, o.reports_open > 0 ? '처리해야 한다' : '없음'],
   ];
-  $('kpis').innerHTML = items.map(([label, v, sub]) =>
-    `<div class="kpi"><b>${num(v)}</b><span>${esc(label)}<br>${esc(sub)}</span></div>`).join('');
+  const html = items.map(([label, v, sub]) =>
+    `<a class="kpi" href="${label === '신고 대기' ? '#appeals' : '#analytics'}"><b>${num(v)}</b><span>${esc(label)}<br>${esc(sub)}</span></a>`).join('');
+  document.querySelectorAll('[data-now]').forEach((el) => { el.innerHTML = html; });
 }
 
 async function drawFunnel() {
@@ -454,73 +1034,1105 @@ async function drawJourney(sid) {
     </div>`).join('') || '<p class="muted">줄이 없습니다</p>';
 }
 
+/* ── 운영 (Phase 1 M4) ─────────────────────────────────────────────────
+   역할·버튼 표시는 편의다. **판정은 서버가 한다** — 여기서 숨긴 버튼을 개발자 도구로 살려도
+   서버 함수의 첫 줄(require_role · require_recent_auth)에서 막힌다.                         */
+let ROLE = null;          // owner | support | analyst | content | 'legacy'(서버에 M4 없음)
+let ME = null;
+const MODE_LABEL = { normal: '정상', notice: '안내만', pause_auto: '자동 발송 중지',
+                     pause_all: '전체 발송 중지', pause_account: '계정·백업 점검' };
+const STATE_LABEL = {
+  sent: ['발송 성공 확인', 'ok'], partial_fail: ['일부 조각 실패', 'bad'], failed: ['확인된 실패', 'bad'],
+  device_failed: ['기기에서 실패', 'bad'], unconfirmed: ['결과 미확인', ''], unconfirmed_os: ['OS 호출 미확인', ''],
+  partial_unconfirmed: ['일부 미확인', ''], unsupported: ['결과 미지원(구버전)', ''],
+};
+const SIGNAL_LABEL = {
+  daily_over_limit: '하루 40통 초과', short_auto_interval: '자동 간격 20초 미만',
+  same_target_30d: '같은 수신자 30일 5건 초과', blocked_repeat: '한도·중복 차단 반복', many_installations: '설치 3개 이상',
+};
+const missingFn = (e) => /PGRST202|Could not find the function/i.test(String(e && e.message));
+
+async function loadRole() {
+  try {
+    ME = await rpc('admin_me');
+    ROLE = ME.role;
+  } catch (e) {
+    if (missingFn(e)) { ROLE = 'legacy'; ME = null; }
+    else throw e;
+  }
+  $('roleText').textContent = ROLE === 'legacy' ? '— (서버에 M4 적용 전)' :
+    ({ owner: '최고관리자', support: '지원', analyst: '분석', content: '콘텐츠' }[ROLE] || ROLE);
+  $('roleBadge').hidden = !ME; $('roleBadge').textContent = $('roleText').textContent;
+  $('reauth').hidden = ROLE !== 'owner';
+  $('reauthM').hidden = ROLE !== 'owner';
+  drawFeedbackBadge();
+  $('opsNote').textContent = ROLE === 'legacy'
+    ? '운영 마이그레이션(20260924220000_ops_admin.sql)이 아직 적용되지 않았습니다'
+    : (ME && ME.recent_auth_ok ? '재인증 유효' : '민감한 작업 전 [재인증] 필요');
+  document.querySelectorAll('[data-roles]').forEach((c) => {
+    c.hidden = ROLE === 'legacy' || !(c.dataset.roles.split(',').includes(ROLE));
+  });
+}
+
+/* 카드 하나가 실패해도 나머지는 그린다 — 권한 없음은 그 카드에만 적는다 */
+async function guard(cardIds, fn) {
+  const cards = [].concat(cardIds).map($).filter((c) => c && !c.hidden);
+  if (!cards.length) return;
+  try {
+    await fn();
+    cards.forEach((c) => { const d = c.querySelector('.denied'); if (d) d.remove(); });
+  } catch (e) {
+    cards.forEach((card) => {
+      let d = card.querySelector('.denied');
+      if (!d) { d = document.createElement('p'); d.className = 'denied'; card.appendChild(d); }
+      d.textContent = '불러오지 못했습니다 — ' + e.message;
+    });
+    // 운영자가 아니거나(«운영자만») 토큰이 만료됐다 — 다시 로그인이 답이다. 역할 거부(«권한이 없습니다»)는 카드에만 적는다
+    if (/운영자만/.test(e.message)) { showBanner(e); signOut('운영자 계정이 아닙니다 — ' + e.message); }
+    else if (e.status === 401 || /JWT|token|expired/i.test(e.message)) { showBanner(e); signOut('로그인이 만료됐습니다 — 다시 로그인하세요'); }
+  }
+}
+
+/* ── 화면 (IA 개편 2026-09-24) ─────────────────────────────────────────
+   화면마다 «누가 보나»와 «처음 열 때 부를 것». 역할은 서버 함수의 require_role 과 같은 줄이다 —
+   여기서 틀려도 서버가 막는다(보이는 것만 틀린다). m4: 운영 마이그레이션이 있어야 뜨는 화면.
+   카드는 처음 열 때 부른다(지연 로드). [새로고침]은 지금 화면만 다시 부른다.                         */
+const PAGES = {
+  overview: { title: '운영 개요', desc: '오늘 확인할 운영 현황과 주요 업무를 한곳에서 확인하세요.',
+    roles: ['owner', 'support', 'analyst'],
+    load: [['cardNow', drawOverview], ['cardRelief', drawRelief]] },
+  monitor: { title: '발송 모니터', desc: '발송 결과와 이상 징후를 확인합니다. 문자 본문은 없습니다.',
+    roles: ['owner', 'support', 'analyst'], m4: true,
+    load: [['cardMonitor', () => drawMonitor(false)], ['cardAnom', drawAnomalies]] },
+  members: { title: '회원 관리', desc: '마스킹된 회원 목록과 같은 번호의 이전 제재를 확인합니다.',
+    roles: ['owner', 'support'], m4: true,
+    load: [['cardMembers', drawMembers]] },
+  restrictions: { title: '이용 제한', desc: '걸려 있는 제한과 기기 적용 여부를 확인하고, 근거를 검토한 뒤 조치합니다.',
+    roles: ['owner', 'support'], m4: true,
+    load: [['cardRestrict', drawRestrictions]] },
+  appeals: { title: '이의신청·신고', desc: '이의신청을 검토·답변하고, 들어온 신고를 처리합니다.',
+    roles: ['owner', 'support'],
+    load: [['cardReliefAp', drawRelief], ['cardAppeals', drawAppeals], ['cardReports', drawReports]] },
+  analytics: { title: '이용 분석', desc: '온보딩·권한·실제 발송 전환과 사용자 여정을 살펴봅니다.',
+    roles: ['owner', 'support', 'analyst'],
+    load: [['cardNowAn', drawOverview], ['cardFunnel', drawFunnel], ['cardPerm', drawPermissions],
+           ['cardStuck', drawStuck], ['cardScreens', drawScreens], ['cardShadow', drawShadow], ['cardJourney', drawSessions]] },
+  feedback: { title: '불편 신고', desc: '오픈 베타 이용자가 앱에서 보낸 불편을 읽고(읽음 처리) 답합니다. 답변은 이용자 앱에 그대로 보입니다.',
+    roles: ['owner', 'support'], m4: true,
+    load: [['cardFeedback', drawFeedback]] },
+  popups: { title: '팝업 관리', desc: '앱 메인에 뜨는 공지·이벤트 이미지를 등록하고 켜고 끕니다. 게스트에게도 보이는 공개 이미지입니다.',
+    roles: ['owner', 'content'], m4: true,
+    load: [['cardPopups', drawPopups]] },
+  crashes: { title: '오류·크래시', desc: '영향받은 사람 수로 정렬한 크래시와 스택을 확인합니다.',
+    roles: ['owner', 'support', 'analyst'],
+    load: [['cardCrashes', drawCrashes]] },
+  control: { title: '서비스 제어', desc: '안내·발송 중지를 게시하고 기기에 적용됐는지 확인합니다.',
+    roles: ['owner', 'support', 'analyst'], m4: true,
+    load: [[['cardControl', 'cardRollout'], drawPolicy]] },
+  audit: { title: '감사 기록', desc: '운영자의 변경 이력과 이유를 확인합니다.',
+    roles: ['owner'], m4: true,
+    load: [['cardAudit', drawAudit]] },
+};
+const ROLE_NAME = { owner: '최고관리자', support: '지원', analyst: '분석', content: '콘텐츠' };
+const LOADED = new Set();
+
+function canSee(id) {
+  const p = PAGES[id];
+  if (ROLE === 'legacy') return !p.m4;   // M4 전 서버 — 역할이 없다. 옛 집계 화면만 연다
+  return p.roles.includes(ROLE);
+}
+
+function route(focus) {
+  if (ROLE === null) return;             // 역할을 알기 전에는 아무 화면도 열지 않는다
+  let id = location.hash.slice(1);
+  if (!PAGES[id]) {
+    id = Object.keys(PAGES).find(canSee) || 'overview';
+    history.replaceState(null, '', '#' + id);
+  }
+  const p = PAGES[id], ok = canSee(id);
+  document.querySelectorAll('#nav a').forEach((a) => {
+    a.hidden = !canSee(a.dataset.page);
+    if (a.dataset.page === id) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+  });
+  // 그룹 제목 — 아래 항목이 전부 숨으면 제목도 숨긴다
+  document.querySelectorAll('#nav .nav-group').forEach((g) => {
+    let n = g.nextElementSibling, any = false;
+    while (n && n.tagName === 'A') { if (!n.hidden) any = true; n = n.nextElementSibling; }
+    g.hidden = !any;
+  });
+  document.querySelectorAll('#taskLinks a').forEach((a) => { a.hidden = !canSee(a.hash.slice(1)); });
+  Object.keys(PAGES).forEach((k) => { $('page-' + k).hidden = !(ok && k === id); });
+  $('crumb').textContent = p.title;
+  $('pageTitle').textContent = p.title;
+  $('pageDesc').textContent = p.desc;
+  document.title = p.title + ' · 일감레이더 운영자 콘솔';
+  // 직접 들어온 권한 없는 화면 — 숨기지 말고 왜 못 여는지 말한다
+  $('pageDeny').hidden = ok;
+  if (!ok) {
+    $('pageDeny').textContent = ROLE === 'legacy'
+      ? '이 화면은 운영 마이그레이션(20260924220000_ops_admin.sql)이 적용된 뒤에 열립니다.'
+      : ROLE === 'content'
+        ? '콘텐츠 역할에는 아직 열 수 있는 화면이 없습니다(공지·양식 기능은 3단계). 권한은 최고관리자에게 확인하세요.'
+        : `이 화면은 ${p.roles.map((r) => ROLE_NAME[r]).join('·')} 역할만 볼 수 있습니다 — 지금 역할: ${ROLE_NAME[ROLE] || ROLE}.`;
+  }
+  if (focus) { $('pageTitle').focus({ preventScroll: true }); window.scrollTo(0, 0); }
+  if (ok && !LOADED.has(id)) loadPage(id);
+}
+
+async function loadPage(id) {
+  LOADED.add(id);
+  await Promise.all(PAGES[id].load.map(([cards, fn]) => guard(cards, fn)));
+}
+window.addEventListener('hashchange', () => {
+  // 복구 링크가 열려 있던 탭으로 해시만 바꿔 돌아온 경우 — 화면 이름이 아니라 토큰이다. 라우터에 넘기지 않는다
+  if (/access_token=|error_code=/.test(location.hash)) {
+    const frag = readAuthFragment(location.hash);
+    history.replaceState(null, '', location.href.split('#')[0]);
+    openRecovery(frag);
+    return;
+  }
+  route(true);
+});
+
+let POLICY = null;
+async function drawPolicy() {
+  POLICY = await rpc('admin_policy_status');
+  const cur = POLICY.current || [];
+  $('policyNow').innerHTML = cur.length
+    ? '<table><thead><tr><th>범위</th><th>모드</th><th class="n">판</th><th>게시</th></tr></thead><tbody>' +
+      cur.map((c) => `<tr><td>${c.min_version_code == null && c.max_version_code == null ? '전체 사용자'
+        : 'versionCode ' + (c.min_version_code ?? '…') + '–' + (c.max_version_code ?? '…')}</td>
+        <td><span class="pill ${c.mode.startsWith('pause_a') ? 'bad' : 'ok'}">${esc(MODE_LABEL[c.mode] || c.mode)}</span></td>
+        <td class="n">${num(c.revision)}</td><td>${when(c.published_at)}</td></tr>`).join('') + '</tbody></table>'
+    : '<p class="muted">게시된 정책이 없습니다 — 전체 사용자 정상.</p>';
+  const k = (label, v, sub) => `<div class="kpi"><span class="muted">${esc(label)}</span><b>${num(v)}</b>${sub ? `<span class="muted" style="font-size:12px">${esc(sub)}</span>` : ''}</div>`;
+  $('rollout').innerHTML =
+    k('최신 판', POLICY.revision) +
+    k('적용 확인', POLICY.applied, '최근 30일 설치 중') +
+    k('아직 확인 안 됨', POLICY.not_yet, '받기 전 · 오프라인일 수 있다') +
+    k('구버전 추정', POLICY.old_app_users_est, '이 제어를 모름 · 최근 7일 활동') +
+    `<div class="kpi"><span class="muted">마지막 보고</span><b style="font-size:16px">${when(POLICY.last_report_at)}</b></div>`;
+}
+
+let PUB_REQ = null;   // 같은 게시를 두 번 눌러도 같은 요청 ID — 서버가 한 번만 반영한다
+$('polPreview').onclick = () => {
+  $('polErr').textContent = '';
+  const mode = $('polMode').value, min = $('polMin').value, max = $('polMax').value;
+  const reason = $('polReason').value.trim();
+  if (!reason) { $('polErr').textContent = '이유를 적어 주세요'; return; }
+  const scope = !min && !max ? '<b>전체 사용자</b>' : `versionCode <b>${esc(min || '…')}–${esc(max || '…')}</b>`;
+  const effect = {
+    normal: '이 범위의 정지를 풉니다. 계정 제재는 풀리지 않습니다. 쌓인 큐를 한꺼번에 보내지 않습니다 — 앱이 조건을 다시 봅니다.',
+    notice: '안내만 띄웁니다. 발송은 그대로입니다.',
+    pause_auto: '자동 발송만 멈춥니다. 수동 [지금 보내기]는 기존 정책 검사 후 나갑니다.',
+    pause_all: '자동·수동·테스트를 포함한 <b>앱 내 모든 문자</b>를 멈춥니다.',
+  }[mode];
+  $('polPlan').innerHTML = `${scope} → <b>${esc(MODE_LABEL[mode])}</b>. ${effect}<br>` +
+    `현재 판 ${num(POLICY && POLICY.revision)} 기준으로 게시합니다(그 사이 다른 게시가 있으면 덮어쓰지 않고 멈춥니다). ` +
+    `적용은 각 기기가 다음에 서버를 볼 때입니다.`;
+  PUB_REQ = crypto.randomUUID();
+  $('polPublish').hidden = false;
+};
+['polMode', 'polMin', 'polMax', 'polNotice', 'polReason'].forEach((id) =>
+  $(id).addEventListener('input', () => { $('polPublish').hidden = true; PUB_REQ = null; }));
+$('polPublish').onclick = async () => {
+  $('polErr').textContent = '';
+  $('polPublish').disabled = true;
+  try {
+    const int = (v) => (v === '' ? null : Number(v));
+    const res = await rpc('admin_publish_policy', {
+      p_request_id: PUB_REQ, p_mode: $('polMode').value,
+      p_min_version_code: int($('polMin').value), p_max_version_code: int($('polMax').value),
+      p_notice: $('polNotice').value, p_reason: $('polReason').value.trim(),
+      p_expected_revision: POLICY ? POLICY.revision : 0,
+    });
+    if (res && res.conflict) {
+      $('polErr').textContent = `그 사이 다른 게시가 있었습니다(현재 판 ${res.current_revision}). 새로 읽고 다시 미리보기 하세요.`;
+    } else {
+      $('polPlan').textContent = `게시했습니다 — 판 ${res.revision}. 기기 적용은 «앱 적용 확인»에서 봅니다.`;
+      $('polPublish').hidden = true; PUB_REQ = null; $('polReason').value = '';
+    }
+    await drawPolicy(); await guard('cardAudit', drawAudit);
+  } catch (e) {
+    $('polErr').textContent = reauthHint(e);
+  } finally {
+    $('polPublish').disabled = false;
+  }
+};
+
+let MON_BEFORE = null;
+async function drawMonitor(more) {
+  const days = Number($('monRange').value);
+  const to = new Date(Date.now() + 60_000).toISOString();
+  const from = new Date(Date.now() - days * 86_400_000).toISOString();
+  const user = $('monUser').value.trim() || null;
+  if (!more) {
+    MON_BEFORE = null;
+    const st = await rpc('admin_send_stats', { p_from: from, p_to: to });
+    const pct = st.success_rate == null ? '—' : (st.success_rate * 100).toFixed(1) + '%';
+    const unconf = st.logical ? Math.round((st.unconfirmed / st.logical) * 100) : 0;
+    const blocked = Object.entries(st.blocked || {}).map(([k, v]) => `${k} ${v}`).join(' · ') || '없음';
+    $('monStats').innerHTML = `
+      <div class="kpi"><span class="muted">성공률</span><b>${pct}</b><span class="muted" style="font-size:12px">성공 ${num(st.success)} / (성공+확인 실패 ${num(st.success + st.failed)})</span></div>
+      <div class="kpi"><span class="muted">미확인</span><b>${num(st.unconfirmed)}</b><span class="muted" style="font-size:12px">${unconf}% · 성공률 분모 밖</span></div>
+      <div class="kpi"><span class="muted">논리 통 / 물리 조각</span><b>${num(st.logical)} / ${num(st.physical)}</b></div>
+      <div class="kpi"><span class="muted">일부 조각 실패</span><b>${num(st.partial_fail)}</b></div>
+      <div class="kpi"><span class="muted">결과 미지원(구버전)</span><b>${num(st.unsupported)}</b></div>
+      <div class="kpi"><span class="muted">전달 확인</span><b>${num(st.delivered)}</b><span class="muted" style="font-size:12px">읽음은 모른다</span></div>
+      <div class="kpi"><span class="muted">미발송(차단)</span><b style="font-size:13px">${esc(blocked)}</b></div>
+      <div class="kpi"><span class="muted">마지막 수신</span><b style="font-size:16px">${when(st.last_received_at)}</b></div>`;
+  }
+  if (ROLE === 'analyst') { $('monList').innerHTML = '<tbody><tr><td class="muted">회원별 목록은 지원·최고관리자만 봅니다(분석은 집계만).</td></tr></tbody>'; return; }
+  const rows = await rpc('admin_send_monitor', { p_from: from, p_to: to, p_user_prefix: user, p_before_id: MON_BEFORE, p_limit: 100 });
+  const cols = [
+    { h: '시각', f: (r) => when(r.sent_at) }, { h: '회원', k: 'who' },
+    { h: '종류', f: (r) => esc(r.msg_kind) + (r.is_auto ? ' · 자동' : ' · 수동') },
+    { h: '결과', f: (r) => { const l = STATE_LABEL[r.state] || [r.state, '']; return `<span class="pill ${l[1]}">${esc(l[0])}</span>`; } },
+    { h: '전달', f: (r) => esc({ confirmed: '확인', failed: '실패', unconfirmed: '미확인', not_requested: '—' }[r.delivery] || r.delivery) },
+    { h: '조각', k: 'parts', n: true }, { h: '수신자', k: 'target' }, { h: '앱', k: 'app_version' },
+  ];
+  if (more && rows.length) {
+    const tmp = document.createElement('table'); table(tmp, cols, rows);
+    $('monList').querySelector('tbody').insertAdjacentHTML('beforeend', tmp.querySelector('tbody').innerHTML);
+  } else table($('monList'), cols, rows);
+  MON_BEFORE = rows.length ? rows[rows.length - 1].message_log_id : MON_BEFORE;
+  $('monMore').hidden = rows.length < 100;
+}
+$('monGo').onclick = () => guard('cardMonitor', () => drawMonitor(false));
+$('monMore').onclick = () => guard('cardMonitor', () => drawMonitor(true));
+
+async function drawAnomalies() {
+  const rows = await rpc('admin_anomalies', { p_days: 7 });
+  table($('anom'), [
+    { h: '회원', k: 'who' }, { h: '신호', f: (r) => esc(SIGNAL_LABEL[r.signal] || r.signal) },
+    { h: '값', k: 'value', n: true }, { h: '기준', k: 'threshold', n: true },
+    { h: '기간', k: 'window_desc' }, { h: '분모', k: 'denominator', n: true },
+    { h: '표본 발송 ID', f: (r) => esc((r.sample_ids || []).join(', ')) },
+  ], rows);
+}
+
+async function drawMembers() {
+  const rows = await rpc('admin_members', { p_limit: 100 });
+  table($('members'), [
+    { h: '회원', k: 'who' }, { h: '가입', f: (r) => when(r.joined_at) }, { h: '이메일', k: 'email_masked' },
+    { h: '앱', k: 'app_version' }, { h: '마지막 보고', f: (r) => when(r.last_seen_at) },
+    { h: '적용 판', k: 'applied_revision', n: true }, { h: '설치', k: 'installations', n: true },
+    { h: '모드', f: (r) => r.shadow_mode == null ? '—' : (r.shadow_mode ? '연습' : '실제 발송') },
+    { h: '7일 발송', k: 'sends_7d', n: true },
+    { h: '', f: (r) => `<button data-mon="${esc(r.who)}">발송 기록</button>` +
+        (ROLE === 'owner' ? ` <button data-rs="${esc(r.who)}">제한 검토</button>` : '') },
+  ], rows);
+}
+$('members').addEventListener('click', (e) => {
+  const d = e.target.dataset || {};
+  if (d.mon) { $('monUser').value = d.mon; LOADED.delete('monitor'); location.hash = 'monitor'; }
+  if (d.rs) { $('rsUser').value = d.rs; $('rsComposer').open = true; location.hash = 'restrictions'; }
+});
+
+async function drawAudit() {
+  const rows = await rpc('admin_audit', { p_limit: 100 });
+  table($('audit'), [
+    { h: '시각', f: (r) => when(r.at) }, { h: '누가', f: (r) => esc(r.actor + ' · ' + r.actor_role) },
+    { h: '무엇', f: (r) => esc(r.action + ' → ' + r.target_type + (r.target_id ? ' ' + r.target_id : '')) },
+    { h: '내용', f: (r) => esc(JSON.stringify(r.diff || {})) }, { h: '이유', k: 'reason' },
+    { h: '결과', f: (r) => `<span class="pill ${r.outcome === 'ok' ? 'ok' : 'bad'}">${esc(r.outcome)}</span>` },
+  ], rows);
+}
+
+/* ── 제재 · 이의신청 (Phase 1 M5) ─────────────────────────────────────
+   서버에 M5 가 아직 없으면(함수 없음) 카드에 그렇게 적는다 — 빈 표를 «제재 없음»으로 읽지 않게.
+   걸기·줄이기·풀기는 최고관리자 + 15분 재인증(서버가 판정). 요청 ID 로 두 번 눌러도 한 번만 반영된다. */
+const SCOPE_LABEL = { warn: '경고', auto_send: '자동 발송 제한', all_send: '문자 발송 제한', service: '서비스 이용 제한' };
+const SCOPE_RANK = { warn: 0, auto_send: 1, all_send: 2, service: 3 };
+const APPEAL_LABEL = { received: '접수됨', reviewing: '검토 중', answered: '답변함', closed: '닫힘' };
+const OUTCOME_LABEL = { kept: '유지', narrowed: '축소', lifted: '해제' };
+const M5_MISSING = '제재 마이그레이션(20260924230000_restriction_appeal.sql)이 아직 적용되지 않았습니다';
+async function m5(fn) {
+  try { return await fn(); }
+  catch (e) { if (missingFn(e)) throw new Error(M5_MISSING); throw e; }
+}
+function reauthHint(e) {
+  return e.message + (/재인증/.test(e.message) && !/\[재인증\]/.test(e.message) ? ' — ' + reauthWhere() + '을 누르세요' : '');
+}
+
+async function drawRelief() {
+  const m = await m5(() => rpc('admin_relief_metrics'));
+  const k = (label, v, sub, bad, href = '#appeals') => `<a class="kpi" href="${href}"><span class="muted">${esc(label)}</span><b${bad ? ' style="color:var(--flag)"' : ''}>${v == null ? '—' : esc(String(v))}</b>${sub ? `<span class="muted" style="font-size:12px">${esc(sub)}</span>` : ''}</a>`;
+  const html =
+    k('걸려 있는 제재', num(m.active), null, false, '#restrictions') +
+    k('열린 이의신청', num(m.open)) +
+    k('목표 시각 넘김', num(m.overdue), '아직 사람이 안 봄', m.overdue > 0) +
+    k('가장 오래 기다린', m.oldest_open_hours == null ? null : m.oldest_open_hours + '시간') +
+    k('첫 검토 중앙값', m.median_first_review_hours_30d == null ? null : m.median_first_review_hours_30d + '시간', '최근 30일') +
+    k('이의신청 후 해제', num(m.lifted_after_appeal_30d), '최근 30일') +
+    k('해제 전달 대기', num(m.lift_pending_delivery), '폰이 아직 못 받음', m.lift_pending_delivery > 0, '#restrictions');
+  document.querySelectorAll('[data-relief]').forEach((el) => { el.innerHTML = html; });
+}
+
+let RS_ROWS = [];
+async function drawRestrictions() {
+  $('rsComposer').hidden = ROLE !== 'owner';
+  RS_ROWS = await m5(() => rpc('admin_restrictions', { p_active_only: $('rsActive').checked }));
+  const owner = ROLE === 'owner';
+  table($('restrictions'), [
+    { h: 'ID', k: 'id', n: true }, { h: '회원', k: 'who' },
+    { h: '범위', f: (r) => `<span class="pill ${r.lifted_at ? 'ok' : 'bad'}">${esc(SCOPE_LABEL[r.scope] || r.scope)}</span>` },
+    { h: '사유', k: 'reason_code' }, { h: '시작', f: (r) => when(r.starts_at) },
+    { h: '끝', f: (r) => r.lifted_at ? '해제 ' + when(r.lifted_at) : (r.permanent ? '무기한' : when(r.ends_at)) },
+    { h: '기기 적용', f: (r) => `<span class="pill ${/확인/.test(r.delivery) ? 'ok' : ''}">${esc(r.delivery)}</span>` },
+    { h: '이전 제재', k: 'prior_by_phone', n: true },
+    { h: '이의신청', f: (r) => r.appeal_status ? esc(APPEAL_LABEL[r.appeal_status] || r.appeal_status) +
+        (/received|reviewing/.test(r.appeal_status) ? ' · 목표 ' + when(r.appeal_due_at) : '') : '—' },
+    { h: '', f: (r) => owner && !r.lifted_at && r.delivery !== '계정 삭제됨'
+        ? `<button data-narrow="${r.id}">줄이기</button> <button class="danger" data-lift="${r.id}">풀기</button>` : '' },
+  ], RS_ROWS);
+  $('restrictions').querySelectorAll('[data-lift]').forEach((b) => b.onclick = () => rsInline(Number(b.dataset.lift), 'lift'));
+  $('restrictions').querySelectorAll('[data-narrow]').forEach((b) => b.onclick = () => rsInline(Number(b.dataset.narrow), 'narrow'));
+}
+$('rsGo').onclick = () => guard('cardRestrict', drawRestrictions);
+
+/* 줄이기·풀기 — 표 아래 한 줄 폼. 요청 ID 는 폼을 열 때 하나 */
+function rsInline(id, kind) {
+  const r = RS_ROWS.find((x) => x.id === id); if (!r) return;
+  const req = crypto.randomUUID();
+  $('rsErr').textContent = '';
+  const lighter = Object.keys(SCOPE_RANK).filter((s) => SCOPE_RANK[s] <= SCOPE_RANK[r.scope]);
+  $('rsPlan').innerHTML = kind === 'lift'
+    ? `<b>#${id} ${esc(SCOPE_LABEL[r.scope] || r.scope)}</b>(${esc(r.who)})를 풉니다. 폰에는 앱을 다음에 열 때 적용됩니다 — 그 전까지 «해제 전달 대기».
+       <div class="row" style="margin-top:6px"><input id="rsxReason" placeholder="해제 이유(필수)" style="flex:1"><button class="danger" id="rsxGo">풀기</button></div>`
+    : `<b>#${id}</b>를 줄입니다 — 더 가벼운 범위와 <b>더 이른</b> 끝만 됩니다(늘리려면 새로 거세요).
+       <div class="row" style="margin-top:6px">
+         <select id="rsxScope">${lighter.map((s) => `<option value="${s}"${s === r.scope ? ' selected' : ''}>${esc(SCOPE_LABEL[s])}</option>`).join('')}</select>
+         <input id="rsxEnds" type="datetime-local" style="width:210px">
+         <input id="rsxReason" placeholder="이유(필수)" style="flex:1"><button class="primary" id="rsxGo">줄이기</button></div>`;
+  $('rsPlan').scrollIntoView({ block: 'nearest' });
+  $('rsxGo').onclick = async () => {
+    $('rsErr').textContent = '';
+    const reason = $('rsxReason').value.trim();
+    if (!reason) { $('rsErr').textContent = '이유를 적어 주세요'; return; }
+    try {
+      if (kind === 'lift') await rpc('admin_lift_restriction', { p_request_id: req, p_id: id, p_reason: reason });
+      else {
+        const ends = $('rsxEnds').value ? new Date($('rsxEnds').value).toISOString() : r.ends_at;
+        await rpc('admin_narrow_restriction', { p_request_id: req, p_id: id, p_scope: $('rsxScope').value, p_ends_at: ends, p_reason: reason });
+      }
+      $('rsPlan').textContent = kind === 'lift'
+        ? `#${id} 를 풀었습니다 — «해제 전달 대기»가 «해제 적용 확인»으로 바뀌는지 보세요.` : `#${id} 를 줄였습니다.`;
+      await Promise.all([guard('cardRestrict', drawRestrictions), guard('cardRelief', drawRelief), guard('cardAudit', drawAudit)]);
+    } catch (e) { $('rsErr').textContent = reauthHint(e); }
+  };
+}
+
+/* 이전 제재 — 회원 관리·제재 등록 두 곳에서 같은 함수를 부른다 */
+async function priorInto(inputId, outId) {
+  $(outId).textContent = '';
+  try {
+    const n = await m5(() => rpc('admin_prior_restrictions', { p_user_prefix: $(inputId).value.trim() }));
+    $(outId).textContent = n ? `같은 번호로 다른 계정에서 걸렸던 제재 ${n}건 — 참고만(자동 적용 안 함)` : '같은 번호의 이전 제재 없음';
+  } catch (e) { $(outId).textContent = e.message; }
+}
+$('rsPrior').onclick = () => priorInto('rsUser', 'rsPriorOut');
+$('memPrior').onclick = () => priorInto('memUser', 'memPriorOut');
+$('rsPerm').onchange = () => { $('rsEnds').disabled = $('rsPerm').checked; };
+
+let RS_REQ = null;
+$('rsPreview').onclick = () => {
+  $('rsErr').textContent = ''; $('rsApply').hidden = true;
+  const user = $('rsUser').value.trim(), perm = $('rsPerm').checked, ends = $('rsEnds').value;
+  if (user.length < 8) { $('rsErr').textContent = '회원 ID 앞 8자를 넣어 주세요'; return; }
+  if (!perm && !ends) { $('rsErr').textContent = '끝나는 시각을 정하거나 무기한을 명시하세요'; return; }
+  if (!$('rsReason').value.trim()) { $('rsErr').textContent = '내부 메모(이유)를 적어 주세요'; return; }
+  const scope = $('rsScope').value;
+  const effect = {
+    warn: '발송은 그대로 — 앱에 경고만 뜹니다.',
+    auto_send: '자동 발송이 멈춥니다. 수동 [지금 보내기]는 됩니다.',
+    all_send: '앱에서 나가는 모든 문자(수동·테스트 포함)가 멈춥니다.',
+    service: '모든 문자가 멈춥니다. 로그인·이의신청은 열려 있습니다.',
+  }[scope];
+  $('rsPlan').innerHTML = `<b>${esc(user)}</b> → <b>${esc(SCOPE_LABEL[scope])}</b> · ${perm ? '<b>무기한</b>' : esc(new Date(ends).toLocaleString('ko-KR')) + '까지'}. ${effect}<br>
+    사용자에게는 범위·사유(«${esc($('rsCode').selectedOptions[0].textContent)}»)·기간이 보이고, 내부 메모와 증거는 안 보입니다.
+    폰에는 앱을 다음에 열 때 적용됩니다.`;
+  RS_REQ = crypto.randomUUID(); $('rsApply').hidden = false;
+};
+['rsUser', 'rsScope', 'rsCode', 'rsClause', 'rsEnds', 'rsPerm', 'rsEvid', 'rsReport', 'rsReason'].forEach((id) =>
+  $(id).addEventListener('input', () => { $('rsApply').hidden = true; RS_REQ = null; }));
+$('rsApply').onclick = async () => {
+  $('rsErr').textContent = ''; $('rsApply').disabled = true;
+  try {
+    const ev = $('rsEvid').value.split(/[\s,]+/).filter(Boolean).map(Number).filter(Number.isFinite);
+    const res = await m5(() => rpc('admin_restrict', {
+      p_request_id: RS_REQ, p_user_prefix: $('rsUser').value.trim(), p_scope: $('rsScope').value,
+      p_reason_code: $('rsCode').value, p_permanent: $('rsPerm').checked,
+      p_ends_at: $('rsPerm').checked ? null : new Date($('rsEnds').value).toISOString(),
+      p_reason: $('rsReason').value.trim(), p_evidence_ids: ev.length ? ev : null,
+      p_report_id: $('rsReport').value ? Number($('rsReport').value) : null,
+      p_policy_clause: $('rsClause').value.trim() || null,
+    }));
+    $('rsPlan').textContent = `걸었습니다 — 제재 #${res.restriction_id}, 판 ${res.revision}. «기기 적용»이 «적용 확인»이 될 때까지는 폰이 아직 모릅니다.`;
+    $('rsApply').hidden = true; RS_REQ = null; $('rsReason').value = '';
+    await Promise.all([guard('cardRestrict', drawRestrictions), guard('cardRelief', drawRelief), guard('cardAudit', drawAudit)]);
+  } catch (e) {
+    $('rsErr').textContent = reauthHint(e);
+  } finally { $('rsApply').disabled = false; }
+};
+
+const AP_REQ = {};   // 같은 버튼을 두 번 눌러도 같은 요청 ID — 실패하면 버린다
+async function drawAppeals() {
+  const rows = await m5(() => rpc('admin_appeals', { p_open_only: $('apOpen').checked }));
+  if (!rows.length) { $('appeals').innerHTML = '<p class="muted">열린 이의신청이 없습니다.</p>'; return; }
+  $('appeals').innerHTML = rows.map((a) => `
+    <div class="card" style="margin-bottom:10px; padding:12px 14px;${a.overdue ? ' border-color:var(--flag);' : ''}">
+      <div class="row">
+        <b>#${a.id}</b><span class="muted">제재 #${a.restriction_id} · ${esc(a.who || '(삭제됨)')} · ${esc(SCOPE_LABEL[a.scope] || a.scope)}</span>
+        <span class="pill ${a.overdue ? 'bad' : ''}">${esc(APPEAL_LABEL[a.status] || a.status)}${a.overdue ? ' · 목표 넘김' : ''}</span>
+        <span class="muted">접수 ${when(a.received_at)} · 목표 ${when(a.due_at)}${a.first_review_at ? ' · 첫 검토 ' + when(a.first_review_at) + ' (' + esc(a.assignee || '') + ')' : ''}</span>
+      </div>
+      <p style="white-space:pre-wrap; margin:8px 0;">${esc(a.body)}</p>
+      ${a.answer ? `<p class="note">답변(${esc(OUTCOME_LABEL[a.outcome] || a.outcome || '')}): ${esc(a.answer)}</p>` : ''}
+      ${/received|reviewing/.test(a.status) ? `
+        <div class="row">
+          ${a.status === 'received' ? `<button data-review="${a.id}">검토 시작</button>` : ''}
+          <select data-outcome="${a.id}"><option value="kept">유지</option><option value="narrowed">축소</option><option value="lifted">해제</option></select>
+          <input data-answer="${a.id}" placeholder="사용자에게 보이는 답변" style="flex:1; min-width:220px">
+          <button class="primary" data-send="${a.id}">답변 보내기</button>
+        </div>
+        <div class="err" data-err="${a.id}"></div>` : ''}
+    </div>`).join('');
+  const rid = (k) => (AP_REQ[k] ||= crypto.randomUUID());
+  const errOf = (id) => $('appeals').querySelector(`[data-err="${id}"]`);
+  $('appeals').querySelectorAll('[data-review]').forEach((b) => b.onclick = async () => {
+    const id = Number(b.dataset.review);
+    try {
+      await rpc('admin_appeal_review', { p_request_id: rid('r' + id), p_appeal_id: id });
+      await Promise.all([guard('cardAppeals', drawAppeals), guard('cardRelief', drawRelief)]);
+    } catch (e) { errOf(id).textContent = e.message; delete AP_REQ['r' + id]; }
+  });
+  $('appeals').querySelectorAll('[data-send]').forEach((b) => b.onclick = async () => {
+    const id = Number(b.dataset.send);
+    const answer = $('appeals').querySelector(`[data-answer="${id}"]`).value.trim();
+    if (!answer) { errOf(id).textContent = '답변을 적어 주세요'; return; }
+    try {
+      await rpc('admin_appeal_answer', { p_request_id: rid('a' + id), p_appeal_id: id, p_answer: answer,
+        p_outcome: $('appeals').querySelector(`[data-outcome="${id}"]`).value });
+      await Promise.all([guard('cardAppeals', drawAppeals), guard('cardRelief', drawRelief), guard('cardRestrict', drawRestrictions)]);
+    } catch (e) { errOf(id).textContent = e.message; delete AP_REQ['a' + id]; }
+  });
+}
+$('apGo').onclick = () => guard('cardAppeals', drawAppeals);
+
+/* ── 불편 신고 (오픈 베타) ─────────────────────────────────────────────
+   목록·개수·읽음·답변 — admin_feedback* (20260924235000_beta_feedback.sql). 스크린샷은 비공개 버킷이라
+   로그인 토큰으로 받아 이 브라우저 안에서만 띄운다(공개 링크를 만들지 않는다).                    */
+const FB_MISSING = '불편 신고 마이그레이션(20260924235000_beta_feedback.sql)이 아직 적용되지 않았습니다';
+const FB_LABEL = { received: ['새 것', 'bad'], read: ['읽음', ''], answered: ['답변함', 'ok'] };
+let FB_URLS = [];                       // 만든 그림 주소 — 다시 그릴 때 풀어 준다
+const FB_REQ = {};                      // 같은 버튼 두 번 → 같은 요청 ID(실패하면 버린다)
+
+async function fb(fn) {
+  try { return await fn(); }
+  catch (e) { if (missingFn(e)) throw new Error(FB_MISSING); throw e; }
+}
+
+/** 사이드바 배지 — 안 읽은 수. 권한이 없거나 서버에 없으면 조용히 숨긴다 */
+async function drawFeedbackBadge() {
+  const b = $('fbNavCount');
+  if (!['owner', 'support'].includes(ROLE)) { b.hidden = true; return; }
+  try {
+    const c = await rpc('admin_feedback_counts');
+    b.textContent = c.received > 99 ? '99+' : String(c.received || 0);
+    b.hidden = !c.received;
+    return c;
+  } catch { b.hidden = true; return null; }
+}
+
+async function shotUrl(path) {
+  const res = await fetch(`${CFG.url}/storage/v1/object/authenticated/feedback-shots/${path.split('/').map(encodeURIComponent).join('/')}`,
+    { headers: { apikey: CFG.key, Authorization: 'Bearer ' + token } });
+  if (!res.ok) throw new Error(String(res.status));
+  const u = URL.createObjectURL(await res.blob());
+  FB_URLS.push(u);
+  return u;
+}
+
+async function drawFeedback() {
+  const c = await fb(() => rpc('admin_feedback_counts'));
+  const k = (label, v, sub, bad, filter) => `<a class="kpi" href="#feedback" data-fbfilter="${filter}"><span class="muted">${esc(label)}</span><b${bad ? ' style="color:var(--flag)"' : ''}>${num(v)}</b>${sub ? `<span class="muted" style="font-size:12px">${esc(sub)}</span>` : ''}</a>`;
+  $('fbCounts').innerHTML =
+    k('새 것', c.received, c.oldest_unread_at ? '가장 오래된 것 ' + when(c.oldest_unread_at) : '없음', c.received > 0, 'received') +
+    k('읽음 — 답 안 함', c.read, null, false, 'read') +
+    k('답변함', c.answered, null, false, 'answered');
+  $('fbCounts').querySelectorAll('[data-fbfilter]').forEach((a) => a.onclick = (e) => {
+    e.preventDefault(); $('fbFilter').value = a.dataset.fbfilter; guard('cardFeedback', drawFeedback);
+  });
+  const b = $('fbNavCount'); b.textContent = c.received > 99 ? '99+' : String(c.received || 0); b.hidden = !c.received;
+
+  const rows = await fb(() => rpc('admin_feedback', { p_status: $('fbFilter').value || null, p_limit: 100 }));
+  FB_URLS.forEach((u) => URL.revokeObjectURL(u)); FB_URLS = [];
+  if (!rows.length) { $('fbList').innerHTML = '<p class="muted">이 조건의 신고가 없습니다.</p>'; return; }
+  $('fbList').innerHTML = rows.map((r) => {
+    const l = FB_LABEL[r.status] || [r.status, ''];
+    return `
+    <div class="fb-item ${r.status === 'received' ? 'unread' : ''}" data-fb="${r.id}">
+      <div class="row">
+        <span class="pill ${l[1]}">${esc(l[0])}</span>
+        <span class="muted">#${r.id} · 회원 ${esc(r.who)} · ${when(r.created_at)}${[r.app_version, r.os_version, r.device_model].some(Boolean) ? ' · ' + esc([r.app_version, r.os_version, r.device_model].filter(Boolean).join(' · ')) : ''}</span>
+      </div>
+      <h3>${esc(r.title)}</h3>
+      <div class="fb-body">${esc(r.body)}</div>
+      ${(r.shots || []).length ? `<div class="fb-shots">${r.shots.map((p, i) =>
+        `<a href="#" data-shot="${esc(p)}" title="크게 보기"><span class="muted" style="font-size:12px;padding:6px;display:block">사진 ${i + 1} 불러오는 중…</span></a>`).join('')}</div>` : ''}
+      ${r.read_at ? `<p class="note">읽음 ${when(r.read_at)}${r.reader ? ' · ' + esc(r.reader) : ''}</p>` : ''}
+      ${r.answer ? `<div class="fb-answer"><b>보낸 답변</b> · ${when(r.answered_at)}<div class="fb-body" style="margin:4px 0 0">${esc(r.answer)}</div></div>` : ''}
+      <div class="row" style="margin-top:8px;">
+        ${r.status === 'received' ? `<button data-fbread="${r.id}">읽음 처리</button>` : ''}
+        <textarea data-fbanswer="${r.id}" placeholder="${r.answer ? '답변 고치기 — 이용자에게 새 글로 보입니다' : '이용자에게 보이는 답변'}" style="flex:1; min-width:240px; min-height:56px">${r.answer ? esc(r.answer) : ''}</textarea>
+        <button class="primary" data-fbsend="${r.id}">${r.answer ? '답변 고치기' : '답변 보내기'}</button>
+      </div>
+      <div class="err" data-fberr="${r.id}"></div>
+    </div>`;
+  }).join('');
+
+  // 스크린샷 — 한 장씩 받아 띄운다. 못 받으면 그 자리에 이유만
+  $('fbList').querySelectorAll('[data-shot]').forEach(async (a) => {
+    try {
+      const u = await shotUrl(a.dataset.shot);
+      a.href = u; a.target = '_blank'; a.rel = 'noopener';
+      a.innerHTML = `<img src="${u}" alt="스크린샷">`;
+    } catch (e) {
+      a.innerHTML = `<span class="muted" style="font-size:12px;padding:6px;display:block">사진을 못 불러왔습니다(${esc(e.message)})</span>`;
+      a.removeAttribute('href');
+    }
+  });
+
+  const rid = (k) => (FB_REQ[k] ||= crypto.randomUUID());
+  const errOf = (id) => $('fbList').querySelector(`[data-fberr="${id}"]`);
+  const after = () => Promise.all([guard('cardFeedback', drawFeedback), guard('cardAudit', drawAudit)]);
+  $('fbList').querySelectorAll('[data-fbread]').forEach((b) => b.onclick = async () => {
+    const id = Number(b.dataset.fbread);
+    b.disabled = true;
+    try { await rpc('admin_feedback_read', { p_request_id: rid('r' + id), p_id: id }); await after(); }
+    catch (e) { errOf(id).textContent = reauthHint(e); delete FB_REQ['r' + id]; b.disabled = false; }
+  });
+  $('fbList').querySelectorAll('[data-fbsend]').forEach((b) => b.onclick = async () => {
+    const id = Number(b.dataset.fbsend);
+    const answer = $('fbList').querySelector(`[data-fbanswer="${id}"]`).value.trim();
+    if (!answer) { errOf(id).textContent = '답변을 적어 주세요'; return; }
+    b.disabled = true;
+    try {
+      await rpc('admin_feedback_answer', { p_request_id: rid('a' + id + ':' + answer), p_id: id, p_answer: answer });
+      await after();
+    } catch (e) { errOf(id).textContent = reauthHint(e); delete FB_REQ['a' + id + ':' + answer]; b.disabled = false; }
+  });
+}
+$('fbGo').onclick = () => guard('cardFeedback', drawFeedback);
+
+/* ── 팝업 관리 (POPUP_BRIEF) ────────────────────────────────────────────
+   이미지는 공개 버킷 `popups` 에 **먼저** 올리고, 그 «버킷 안 경로»를 저장한다(전체 주소를 저장하지 않는다 —
+   앱이 자기 서버 주소로 만든다). 쓰기는 콘텐츠·최고관리자(서버가 판정). 재인증은 안 받는다(민감 작업 아님).      */
+const POP_MISSING = '팝업 마이그레이션(20260925100000_app_popup.sql)이 아직 적용되지 않았습니다';
+const POP_TYPE = { notice: '공지', event: '이벤트', update: '업데이트', survey: '설문' };
+const POP_AUD = { all: '전체', guest: '게스트', member: '회원' };
+const POP_STATE = { live: ['켜짐', 'ok'], scheduled: ['예정', ''], ended: ['기간 종료', ''], off: ['꺼짐', 'bad'] };
+const POP_DISMISS = { once_per_day: '하루', once_forever: '영구', every_open: '매번' };
+let POP_ROWS = [];
+let POP_EDIT = null;          // 고치는 중인 팝업(null = 새로)
+let POP_REQ = null;           // 이 폼의 요청 ID — 저장을 두 번 눌러도 한 번
+let POP_FILE_URL = null;      // 고른 파일의 미리보기 주소
+const POP_REQ_MISC = {};
+
+const popUrl = (path) => `${CFG.url.replace(/\/+$/, '')}/storage/v1/object/public/popups/${path.split('/').map(encodeURIComponent).join('/')}`;
+async function pop(fn) {
+  try { return await fn(); }
+  catch (e) { if (missingFn(e)) throw new Error(POP_MISSING); throw e; }
+}
+const popPeriod = (r) => (!r.starts_at && !r.ends_at) ? '상시' : `${r.starts_at ? when(r.starts_at) : '바로'} ~ ${r.ends_at ? when(r.ends_at) : '계속'}`;
+const popLinkText = (u) => !u ? '닫기만' : u === 'ilgam://feedback' ? '불편 신고 열기' : u;
+
+async function drawPopups() {
+  POP_ROWS = await pop(() => rpc('admin_popups'));
+  table($('popList'), [
+    { h: '', f: (r) => `<img class="pop-thumb" src="${esc(popUrl(r.image_path))}" alt="">` },
+    { h: '이름', f: (r) => `<b>${esc(r.title)}</b><br><span class="muted" style="font-size:12px">${esc(popLinkText(r.link_url))}</span>` },
+    { h: '유형', f: (r) => esc(POP_TYPE[r.type] || r.type) },
+    { h: '대상', f: (r) => esc(POP_AUD[r.audience] || r.audience) },
+    { h: '기간', f: (r) => esc(popPeriod(r)) },
+    { h: '버전', f: (r) => (r.min_version_code || r.max_version_code) ? esc(`${r.min_version_code ?? '…'}–${r.max_version_code ?? '…'}`) : '전체' },
+    { h: '우선', k: 'priority', n: true },
+    { h: '닫기', f: (r) => esc(POP_DISMISS[r.dismiss_type] || r.dismiss_type) },
+    { h: '상태', f: (r) => { const l = POP_STATE[r.state] || [r.state, '']; return `<span class="pill ${l[1]}">${esc(l[0])}</span>`; } },
+    { h: '', f: (r) => `<span style="display:flex;gap:6px;flex-wrap:wrap">
+        <button data-popedit="${r.id}">수정</button>
+        <button data-poptoggle="${r.id}">${r.active ? '끄기' : '켜기'}</button>
+        <button class="danger" data-popdel="${r.id}">삭제</button></span>` },
+  ], POP_ROWS);
+  $('popList').querySelectorAll('[data-popedit]').forEach((b) => b.onclick = () => popOpen(POP_ROWS.find((r) => r.id === Number(b.dataset.popedit))));
+  $('popList').querySelectorAll('[data-poptoggle]').forEach((b) => b.onclick = async () => {
+    const r = POP_ROWS.find((x) => x.id === Number(b.dataset.poptoggle));
+    const key = 't' + r.id + ':' + !r.active;
+    b.disabled = true;
+    try {
+      await rpc('admin_popup_set_active', { p_request_id: (POP_REQ_MISC[key] ||= crypto.randomUUID()), p_id: r.id, p_active: !r.active });
+      delete POP_REQ_MISC[key];
+      $('popMsg').textContent = `«${r.title}» ${r.active ? '껐습니다' : '켰습니다'} — 앱은 다음에 켤 때 반영합니다.`;
+      await Promise.all([guard('cardPopups', drawPopups), guard('cardAudit', drawAudit)]);
+    } catch (e) { $('popMsg').textContent = e.message; b.disabled = false; }
+  });
+  // 삭제 — 그 줄 안에서 한 번 더 묻는다(대화상자를 띄우지 않는다)
+  $('popList').querySelectorAll('[data-popdel]').forEach((b) => b.onclick = () => {
+    const id = Number(b.dataset.popdel);
+    b.outerHTML = `<span style="display:flex;gap:6px;align-items:center"><span class="muted" style="font-size:12px">지울까요?</span>
+      <button class="danger" data-popdelyes="${id}">지우기</button><button data-popdelno="${id}">취소</button></span>`;
+    $('popList').querySelector(`[data-popdelno="${id}"]`).onclick = () => guard('cardPopups', drawPopups);
+    $('popList').querySelector(`[data-popdelyes="${id}"]`).onclick = async () => {
+      const key = 'd' + id;
+      try {
+        const res = await rpc('admin_popup_delete', { p_request_id: (POP_REQ_MISC[key] ||= crypto.randomUUID()), p_id: id });
+        delete POP_REQ_MISC[key];
+        // 다른 팝업이 같은 그림을 안 쓰면 그림도 지운다(실패해도 목록은 이미 지워졌다)
+        if (res && res.image_path) await popStorage('DELETE', '', { prefixes: [res.image_path] }).catch(() => null);
+        $('popMsg').textContent = '지웠습니다.';
+        if (POP_EDIT && POP_EDIT.id === id) popClose();
+        await Promise.all([guard('cardPopups', drawPopups), guard('cardAudit', drawAudit)]);
+      } catch (e) { $('popMsg').textContent = e.message; }
+    };
+  });
+}
+
+/** Storage — 로그인 토큰으로. 올리기는 파일 그대로(POST), 지우기는 경로 목록(DELETE) */
+async function popStorage(method, path, body, file) {
+  const res = await fetch(`${CFG.url}/storage/v1/object/popups${path ? '/' + path.split('/').map(encodeURIComponent).join('/') : ''}`, {
+    method,
+    headers: {
+      apikey: CFG.key, Authorization: 'Bearer ' + token,
+      'Content-Type': file ? file.type : 'application/json',
+      ...(file ? { 'x-upsert': 'false', 'cache-control': '3600' } : {}),
+    },
+    body: file || JSON.stringify(body || {}),
+  });
+  const text = await res.text();
+  if (!res.ok) {
+    let m = text; try { const j = JSON.parse(text); m = j.message || j.error || text; } catch { /* 글자 그대로 */ }
+    throw new Error('이미지를 올리지 못했습니다 — ' + m);
+  }
+  return text;
+}
+
+function popLocal(iso) {     // ISO → datetime-local 값(이 브라우저 시간대)
+  if (!iso) return '';
+  const d = new Date(iso); const z = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}T${z(d.getHours())}:${z(d.getMinutes())}`;
+}
+
+function popOpen(row) {
+  POP_EDIT = row || null;
+  POP_REQ = crypto.randomUUID();
+  if (POP_FILE_URL) { URL.revokeObjectURL(POP_FILE_URL); POP_FILE_URL = null; }
+  $('popFile').value = '';
+  $('popFormTitle').textContent = row ? `팝업 수정 — #${row.id}` : '새 팝업';
+  $('popTitle').value = row ? row.title : '';
+  $('popType').value = row ? row.type : 'notice';
+  $('popAudience').value = row ? row.audience : 'all';
+  const link = row && row.link_url;
+  $('popLinkKind').value = !link ? '' : link === 'ilgam://feedback' ? 'feedback' : 'url';
+  $('popLink').value = link && link !== 'ilgam://feedback' ? link : '';
+  $('popStart').value = popLocal(row && row.starts_at);
+  $('popEnd').value = popLocal(row && row.ends_at);
+  $('popMin').value = row && row.min_version_code != null ? row.min_version_code : '';
+  $('popMax').value = row && row.max_version_code != null ? row.max_version_code : '';
+  $('popPriority').value = row ? row.priority : 0;
+  $('popDismiss').value = row ? row.dismiss_type : 'once_per_day';
+  $('popActive').checked = row ? row.active : true;
+  $('popReason').value = '';
+  $('popErr').textContent = '';
+  $('cardPopupForm').hidden = false;
+  popPreview();
+  $('cardPopupForm').scrollIntoView({ block: 'start', behavior: 'smooth' });
+  $('popTitle').focus({ preventScroll: true });
+}
+function popClose() {
+  POP_EDIT = null; POP_REQ = null;
+  if (POP_FILE_URL) { URL.revokeObjectURL(POP_FILE_URL); POP_FILE_URL = null; }
+  $('cardPopupForm').hidden = true;
+}
+
+/** 미리보기 — 앱 카드와 같은 모양: 3:4 그림 + [오늘 그만 보기|닫기] */
+function popPreview() {
+  $('popLink').hidden = $('popLinkKind').value !== 'url';
+  const src = POP_FILE_URL || (POP_EDIT ? popUrl(POP_EDIT.image_path) : null);
+  $('popPreviewImg').innerHTML = src ? `<img src="${esc(src)}" alt="미리보기">` : '<span class="muted">이미지를 고르면 여기 보입니다</span>';
+  const snooze = { once_per_day: '오늘 그만 보기', once_forever: '다시 보지 않기', every_open: null }[$('popDismiss').value];
+  $('popPreviewBtns').innerHTML = (snooze ? `<span class="muted">${snooze}</span>` : '') + '<span><b>닫기</b></span>';
+  const kind = $('popLinkKind').value;
+  $('popPreviewLink').textContent = kind === 'feedback' ? '그림을 누르면 → 앱의 «불편 신고» 화면'
+    : kind === 'url' ? `그림을 누르면 → ${$('popLink').value.trim() || '(주소를 적어 주세요)'}` : '그림을 누르면 → 닫힌다';
+}
+['popLinkKind', 'popLink', 'popDismiss'].forEach((id) => $(id).addEventListener('input', popPreview));
+// 고치기 시작하면 지난 오류 문구는 지운다 — 이미 고친 것을 계속 탓하지 않게
+$('cardPopupForm').addEventListener('input', (e) => { if (e.target.id !== 'popFile') $('popErr').textContent = ''; });
+$('popFile').addEventListener('change', () => {
+  $('popErr').textContent = '';
+  const f = $('popFile').files[0];
+  if (POP_FILE_URL) { URL.revokeObjectURL(POP_FILE_URL); POP_FILE_URL = null; }
+  if (f) {
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(f.type)) { $('popErr').textContent = 'PNG·JPG·WebP 만 올릴 수 있습니다'; $('popFile').value = ''; }
+    else if (f.size > 3 * 1024 * 1024) { $('popErr').textContent = '3MB 를 넘습니다 — 줄여서 올려 주세요'; $('popFile').value = ''; }
+    else POP_FILE_URL = URL.createObjectURL(f);
+  }
+  popPreview();
+});
+$('popNew').onclick = () => popOpen(null);
+$('popCancel').onclick = popClose;
+
+$('popSave').onclick = async () => {
+  $('popErr').textContent = '';
+  const f = $('popFile').files[0];
+  const title = $('popTitle').value.trim(), reason = $('popReason').value.trim();
+  const kind = $('popLinkKind').value, url = $('popLink').value.trim();
+  const int = (v) => (v === '' ? null : Number(v));
+  const iso = (v) => (v ? new Date(v).toISOString() : null);
+  if (!POP_EDIT && !f) { $('popErr').textContent = '이미지를 골라 주세요'; return; }
+  if (!title) { $('popErr').textContent = '이름을 적어 주세요'; return; }
+  if (kind === 'url' && !/^https:\/\/\S+$/.test(url)) { $('popErr').textContent = '웹 주소는 https:// 로 시작해야 합니다'; return; }
+  if ($('popStart').value && $('popEnd').value && new Date($('popEnd').value) <= new Date($('popStart').value)) { $('popErr').textContent = '끝나는 때가 시작보다 뒤여야 합니다'; return; }
+  if (!reason) { $('popErr').textContent = '이유를 적어 주세요'; return; }
+  $('popSave').disabled = true;
+  try {
+    let path = POP_EDIT ? POP_EDIT.image_path : null;
+    if (f) {
+      const ext = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' }[f.type];
+      path = `${new Date().getFullYear()}/${POP_REQ}.${ext}`;           // 같은 저장을 다시 누르면 같은 경로
+      await popStorage('POST', path, null, f).catch((e) => { if (!/exists|Duplicate/i.test(e.message)) throw e; });
+    }
+    const res = await pop(() => rpc('admin_popup_upsert', {
+      p_request_id: POP_REQ, p_id: POP_EDIT ? POP_EDIT.id : null, p_title: title, p_image_path: path,
+      p_link_url: kind === 'feedback' ? 'ilgam://feedback' : kind === 'url' ? url : null,
+      p_type: $('popType').value, p_audience: $('popAudience').value,
+      p_min_version_code: int($('popMin').value), p_max_version_code: int($('popMax').value),
+      p_starts_at: iso($('popStart').value), p_ends_at: iso($('popEnd').value),
+      p_priority: int($('popPriority').value) ?? 0, p_dismiss_type: $('popDismiss').value,
+      p_active: $('popActive').checked, p_reason: reason,
+    }));
+    $('popMsg').textContent = `저장했습니다 — #${res.id}. 앱은 다음에 켤 때 받아 갑니다.`;
+    popClose();
+    await Promise.all([guard('cardPopups', drawPopups), guard('cardAudit', drawAudit)]);
+  } catch (e) {
+    $('popErr').textContent = e.message;
+  } finally {
+    $('popSave').disabled = false;
+  }
+};
+$('fbFilter').onchange = () => guard('cardFeedback', drawFeedback);
+
+/*
+ * 재인증 — 비밀번호를 다시 넣어 토큰을 새로 받는다. 토큰의 인증 시각(amr[].timestamp)이 지금으로 바뀐다.
+ * 서버(require_recent_auth)는 그 시각이 15분 안인지만 본다 — 방법(코드·비밀번호)은 가리지 않는다.
+ * 토큰 «갱신»으로는 이 시각이 안 바뀐다. 그래서 반드시 사람이 비밀번호를 다시 넣어야 한다.
+ */
+$('reauth').onclick = async () => {
+  let email = MY_EMAIL;
+  if (!email) {
+    const me = await api('/auth/v1/user', null, true, 'GET').catch(() => null);
+    email = MY_EMAIL = (me && me.email) || '';
+  }
+  if (!email) { $('opsNote').textContent = '계정 이메일을 알 수 없습니다 — 로그아웃한 뒤 다시 로그인하세요'; return; }
+  $('opsNote').innerHTML = `${esc(email)} 비밀번호 — <input id="rePw" type="password" autocomplete="current-password" style="width:180px"> ` +
+    `<button id="reGo">확인</button> <button id="reCancel">취소</button> <span class="err" id="reErr"></span>`;
+  $('rePw').focus();
+  const go = async () => {
+    const pw = $('rePw').value;
+    if (!pw) { $('reErr').textContent = '비밀번호를 넣어 주세요'; return; }
+    $('reGo').disabled = true;
+    try {
+      const t = await passwordLogin(email, pw);
+      $('rePw').value = '';
+      setToken(t.access_token);
+      await loadRole();                     // «재인증 유효»로 바뀐다
+    } catch (e) {
+      $('rePw').value = '';
+      $('reErr').textContent = authMessage(e, 'reauth');
+      $('reGo').disabled = false;
+      $('rePw').focus();
+    }
+  };
+  $('reGo').onclick = go;
+  $('rePw').addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
+  $('reCancel').onclick = () => loadRole();
+};
+
 /* ── 전체 다시 그리기 ────────────────────────────────────────────────── */
+// ⛔ 대화상자를 안 쓴다. 콘솔이 alert 을 띄우면 자동 확인 도구가 통째로 멈추고,
+//    무엇보다 「확인」을 누르기 전까지 화면을 아무것도 못 읽는다
+function showBanner(e) {
+  const b = $('banner');
+  b.hidden = false;
+  b.textContent = '불러오지 못했습니다 — ' + e.message;
+}
+
 async function refresh() {
   $('banner').hidden = true;
   try {
-    await Promise.all([
-      drawOverview(), drawFunnel(), drawPermissions(), drawStuck(),
-      drawScreens(), drawShadow(), drawReports(), drawCrashes(), drawSessions(),
-    ]);
+    await loadRole();
   } catch (e) {
-    // ⛔ 대화상자를 안 쓴다. 콘솔이 alert 을 띄우면 자동 확인 도구가 통째로 멈추고,
-    //    무엇보다 「확인」을 누르기 전까지 화면을 아무것도 못 읽는다
-    const b = $('banner');
-    b.hidden = false;
-    b.textContent = '불러오지 못했습니다 — ' + e.message;
+    showBanner(e);
     // 운영자가 아니거나 토큰이 만료됐다. 둘 다 다시 로그인이 답이다
-    if (/운영자|JWT|token|expired|401/i.test(e.message)) signOut();
+    if (/운영자/.test(e.message)) signOut('운영자 계정이 아닙니다 — ' + e.message);
+    else if (e.status === 401 || /JWT|token|expired/i.test(e.message)) signOut('로그인이 만료됐습니다 — 다시 로그인하세요');
+    return;
   }
+  // 콘텐츠 역할은 회원 이용 기록을 못 본다(서버가 거부한다) — 그 화면들은 거부 문구만 뜨고 부르지 않는다
+  LOADED.clear();       // 다른 화면은 들어갈 때 새로 부른다
+  route(false);
 }
 
-/* ── 로그인 ──────────────────────────────────────────────────────────── */
-async function onGo() {
-  const err = $('gateErr');
-  err.textContent = '';
+/* ── 로그인 (이메일 + 비밀번호) ─────────────────────────────────────────
+   supabase-js 의 signInWithPassword · resetPasswordForEmail · updateUser 와 같은 Auth REST 를 직접 부른다
+   (이 파일은 라이브러리를 싣지 않는다 — 서버·빌드 없이 파일 하나로 연다).
+   ⛔ 비밀번호는 변수에 잠깐 들렀다 바로 버린다. localStorage 에는 **토큰만** 들어간다.            */
+let MY_EMAIL = '';
+
+function setToken(t) {
+  token = t;
+  localStorage.setItem('ilgam.token', token);
+}
+
+/** signInWithPassword — 성공하면 access_token 을 담은 세션이 온다(amr 에 password·지금 시각) */
+function passwordLogin(email, password) {
+  return api('/auth/v1/token?grant_type=password', { email, password }, false);
+}
+
+/** 사람이 읽는 말로 — 무엇이 틀렸고 다음에 뭘 하면 되는지 */
+function authMessage(e, where) {
+  if (e.offline) return e.message;
+  const m = String(e.message || '');
+  const code = String(e.code || '');
+  if (e.status === 429 || /rate.?limit|too many|security purposes/i.test(m + code))
+    return where === 'forgot'
+      ? '메일을 너무 자주 요청했습니다 — 1분쯤 뒤에 다시 받으세요'
+      : '시도가 너무 많습니다 — 잠시 뒤에 다시 하세요';
+  if (/invalid_credentials|invalid_grant/i.test(code) || /invalid login credentials/i.test(m))
+    return where === 'reauth'
+      ? '비밀번호가 맞지 않습니다'
+      : '이메일 또는 비밀번호가 맞지 않습니다. 비밀번호를 정한 적이 없거나 잊었으면 [비밀번호 재설정]을 누르세요';
+  if (/email_not_confirmed|email not confirmed/i.test(code + m)) return '이메일 확인이 끝나지 않은 계정입니다 — 가입 확인 메일부터 여세요';
+  if (/same_password|should be different/i.test(code + m)) return '지금 비밀번호와 같습니다 — 다른 비밀번호를 정하세요';
+  if (/weak_password|password should|at least/i.test(code + m)) return '서버의 비밀번호 규칙에 맞지 않습니다 — ' + m;
+  if (e.status === 401 || /jwt|expired|session/i.test(code + m))
+    return where === 'reset' ? '재설정 링크가 만료됐습니다 — 재설정 메일을 다시 받으세요' : '로그인이 만료됐습니다 — 다시 로그인하세요';
+  return (where === 'forgot' ? '메일을 보내지 못했습니다 — ' : where === 'reset' ? '저장하지 못했습니다 — ' : '로그인하지 못했습니다 — ') + m;
+}
+
+function gateView(which, note) {
+  show('app', false); show('setup', false); show('gate', true);
+  show('reload', false); show('out', false);     // 로그인 전에는 누를 게 없다
+  show('menuBtn', false); setMenu(false);
+  ['loginBox', 'forgotBox', 'resetBox'].forEach((id) => show(id, id === which));
+  $('password').value = ''; $('rPw').value = ''; $('rPw2').value = '';
+  $('gateErr').textContent = which === 'loginBox' && note ? note : '';
+  $('fMsg').textContent = which === 'forgotBox' && note ? note : '';
+  $('rErr').textContent = '';
+  const first = { loginBox: $('email').value ? 'password' : 'email', forgotBox: 'fEmail', resetBox: 'rPw' }[which];
+  setTimeout(() => $(first).focus(), 0);
+}
+
+$('loginBox').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const email = $('email').value.trim(), pw = $('password').value;
+  $('gateErr').textContent = '';
+  if (!email || !pw) { $('gateErr').textContent = '이메일과 비밀번호를 넣어 주세요'; return; }
   $('go').disabled = true;
   try {
-    const email = $('email').value.trim();
-    const password = $('pw').value;
-    if (!email || !password) throw new Error('이메일과 비밀번호를 넣어주세요');
-    const t = await api('/auth/v1/token?grant_type=password', { email, password }, false);
-    token = t.access_token;
-    localStorage.setItem('ilgam.token', token);
+    const t = await passwordLogin(email, pw);
+    $('password').value = '';
+    setToken(t.access_token);
+    MY_EMAIL = (t.user && t.user.email) || email;
     await enter();
   } catch (e) {
-    /*
-     * ⛔ **왜 틀렸는지 말하지 않는다.** 「그런 계정 없음」과 「비밀번호 틀림」을
-     *    가르면 남이 계정의 존재 여부를 확인할 수 있다. 한 문장으로 합친다.
-     *    (넣다 만 값은 위에서 던진 문구가 있지만 그건 계정 정보가 아니다)
-     */
-    err.textContent = '이메일 또는 비밀번호가 맞지 않습니다';
+    $('password').value = '';
+    $('gateErr').textContent = authMessage(e, 'login');
+    $('password').focus();
   } finally {
     $('go').disabled = false;
   }
+});
+
+/* resetPasswordForEmail — 계정이 있든 없든 같은 답을 준다(있는 이메일인지 알려 주지 않는다) */
+$('forgot').onclick = () => { $('fEmail').value = $('email').value.trim(); gateView('forgotBox'); };
+$('fBack').onclick = () => gateView('loginBox');
+$('forgotBox').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const email = $('fEmail').value.trim();
+  if (!email) { $('fMsg').textContent = '이메일을 넣어 주세요'; return; }
+  $('fSend').disabled = true;
+  $('fMsg').textContent = '';
+  try {
+    // 메일의 링크가 돌아올 곳 = 지금 이 콘솔(해시 빼고). 서버의 Redirect URLs 에 있어야 여기로 온다
+    const back = location.href.split('#')[0];
+    await api('/auth/v1/recover?redirect_to=' + encodeURIComponent(back), { email }, false);
+    $('fMsg').textContent = '운영자 계정이면 몇 분 안에 재설정 메일이 갑니다. 스팸함도 확인하세요. 메일의 링크를 누르면 새 비밀번호를 정합니다.';
+  } catch (e) {
+    $('fMsg').textContent = authMessage(e, 'forgot');
+  } finally {
+    $('fSend').disabled = false;
+  }
+});
+
+/*
+ * 복구 링크 — 메일의 링크를 누르면 Supabase 가 이 페이지로 돌려보내며 **해시**에 토큰을 싣는다
+ *   #access_token=…&refresh_token=…&type=recovery        (성공)
+ *   #error=access_denied&error_code=otp_expired&…         (만료·이미 씀)
+ * ⛔ 이 해시는 화면 라우터(#monitor …)보다 **먼저** 읽고 곧바로 주소창에서 지운다 — 토큰이 방문 기록에 남지 않게.
+ * 복구 토큰은 localStorage 에 넣지 않는다. 새 비밀번호를 저장하는 데만 쓰고 버린 뒤, 새 비밀번호로 로그인하게 한다.
+ */
+let RECOVERY = null;
+function readAuthFragment(text) {
+  const i = text.indexOf('#');
+  const q = new URLSearchParams(i >= 0 ? text.slice(i + 1) : text);
+  if (q.get('error') || q.get('error_code')) return { error: q.get('error_code') || q.get('error'), desc: q.get('error_description') || '' };
+  if (q.get('access_token')) return { token: q.get('access_token'), type: q.get('type') || '' };
+  return null;
 }
 
-function signOut() {
+async function openRecovery(frag) {
+  if (frag.error) {
+    gateView('forgotBox', /expired|invalid/i.test(frag.error + frag.desc)
+      ? '재설정 링크가 만료됐거나 이미 쓰였습니다 — 아래에서 메일을 다시 받으세요'
+      : '재설정 링크를 열지 못했습니다 — 메일을 다시 받으세요');
+    return;
+  }
+  if (frag.type !== 'recovery') {
+    gateView('loginBox', '이 링크는 비밀번호 재설정 링크가 아닙니다 — 이메일과 비밀번호로 로그인하세요');
+    return;
+  }
+  RECOVERY = frag.token;
+  gateView('resetBox');
+  $('rEmail').textContent = '';
+  try {
+    const me = await api('/auth/v1/user', null, false, 'GET', RECOVERY);
+    $('rEmail').textContent = me.email || '';
+    $('rEmailHint').value = me.email || '';     // 비밀번호 관리자가 어느 계정의 새 비밀번호인지 알게
+  } catch (e) {
+    RECOVERY = null;
+    gateView('forgotBox', authMessage(e, 'reset'));
+  }
+}
+
+$('fPasteGo').onclick = () => {
+  const frag = readAuthFragment($('fPaste').value.trim());
+  $('fPaste').value = '';
+  if (!frag) { $('fMsg').textContent = '주소에 재설정 정보(#access_token=…)가 없습니다 — 메일의 링크를 누른 뒤 열린 주소 전체를 붙여넣으세요'; return; }
+  openRecovery(frag);
+};
+
+$('rBack').onclick = () => { RECOVERY = null; gateView('loginBox'); };
+$('resetBox').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const a = $('rPw').value, b = $('rPw2').value;
+  $('rErr').textContent = '';
+  if (a.length < 8) { $('rErr').textContent = '8자 이상으로 정하세요'; return; }
+  if (a !== b) { $('rErr').textContent = '두 칸이 다릅니다'; $('rPw2').value = ''; $('rPw2').focus(); return; }
+  if (!RECOVERY) { gateView('forgotBox', '재설정 링크가 없습니다 — 메일을 다시 받으세요'); return; }
+  $('rSave').disabled = true;
+  try {
+    await api('/auth/v1/user', { password: a }, false, 'PUT', RECOVERY);   // updateUser({ password })
+    RECOVERY = null;
+    $('email').value = $('rEmail').textContent;
+    gateView('loginBox', '');
+    $('gateErr').textContent = '';
+    $('gateErr').insertAdjacentHTML('afterbegin', '<span style="color:var(--go)">새 비밀번호를 저장했습니다 — 그 비밀번호로 로그인하세요</span>');
+  } catch (e) {
+    $('rPw').value = ''; $('rPw2').value = '';
+    $('rErr').textContent = authMessage(e, 'reset');
+  } finally {
+    $('rSave').disabled = false;
+  }
+});
+
+function signOut(note) {
   token = '';
+  MY_EMAIL = '';
   localStorage.removeItem('ilgam.token');
-  // 비밀번호를 화면에 남기지 않는다 — 로그아웃한 자리에 값이 남아 있으면 로그아웃이 아니다
-  $('pw').value = '';
-  show('app', false); show('gate', true);
+  gateView('loginBox', typeof note === 'string' ? note : '');
 }
 
 async function enter() {
   show('gate', false); show('setup', false); show('app', true);
+  show('reload', true); show('out', true); show('menuBtn', true);
   try {
-    const me = await api('/auth/v1/user', {}, true).catch(() => null);
-    $('who').textContent = me && me.email ? me.email : '';
+    // ⓘ GET 이다 — 예전엔 POST 로 불러 이름표가 늘 비어 있었다
+    const me = await api('/auth/v1/user', null, true, 'GET').catch(() => null);
+    if (me && me.email) MY_EMAIL = me.email;
+    $('who').textContent = MY_EMAIL;
   } catch { /* 이름표일 뿐이다. 없어도 콘솔은 돈다 */ }
   await refresh();
 }
 
 /* ── 시작 ────────────────────────────────────────────────────────────── */
 $('reload').onclick = refresh;
-$('out').onclick = signOut;
-$('go').onclick = onGo;
-$('pw').addEventListener('keydown', (e) => { if (e.key === 'Enter') onGo(); });
-$('email').addEventListener('keydown', (e) => { if (e.key === 'Enter') onGo(); });
+const setHead = () => document.documentElement.style.setProperty('--head-h', document.querySelector('header').offsetHeight + 'px');
+window.addEventListener('resize', setHead); setHead();
+$('out').onclick = () => signOut();
+
+/* ── 좁은 폭 — 햄버거 서랍 ───────────────────────────────────────────── */
+function setMenu(open) {
+  document.body.classList.toggle('menu-open', open);
+  $('menuBtn').setAttribute('aria-expanded', String(open));
+  if (open) $('menuClose').focus();
+}
+const closeMenu = () => { setMenu(false); $('menuBtn').focus(); };
+$('menuBtn').onclick = () => setMenu(true);
+$('menuClose').onclick = closeMenu;
+$('scrim').onclick = closeMenu;
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && document.body.classList.contains('menu-open')) closeMenu();
+});
+$('nav').addEventListener('click', (e) => { if (e.target.closest('a')) setMenu(false); });
+NARROW.addEventListener('change', () => { if (!NARROW.matches) setMenu(false); });   // 넓어지면 서랍 상태를 버린다
+$('outM').onclick = () => { setMenu(false); signOut(); };
+// 서랍의 [재인증] — 머리띠의 [재인증]과 같은 일. 비밀번호 칸은 본문 «운영 — 역할» 줄에 열린다
+$('reauthM').onclick = async () => {
+  setMenu(false);
+  await $('reauth').onclick();
+  $('opsNote').scrollIntoView({ block: 'center' });
+};
+
+/*
+ * 당겨서 새로고침 — 좁은 폭에서만. 맨 위에서 아래로 당겼다 놓으면 [새로고침]과 같은 일(역할 + 지금 화면만).
+ * 입력칸·가로 스크롤 표 위에서 시작한 손짓은 가로채지 않는다. 옆으로 밀거나 위로 밀면 포기한다.
+ */
+(() => {
+  const ptr = $('ptr');
+  const READY = 72;                 // 표시가 이만큼 내려오면 «놓으면 새로고침»
+  let y0 = null, x0 = 0, dist = 0, busy = false;
+  const reset = () => { y0 = null; dist = 0; ptr.hidden = true; ptr.style.transform = ''; };
+  document.addEventListener('touchstart', (e) => {
+    y0 = null;
+    if (!NARROW.matches || busy || $('app').hidden || document.body.classList.contains('menu-open')) return;
+    if (window.scrollY > 0 || e.touches.length !== 1) return;
+    if (e.target.closest && e.target.closest('input, textarea, select, .rows, pre')) return;
+    y0 = e.touches[0].clientY; x0 = e.touches[0].clientX;
+  }, { passive: true });
+  document.addEventListener('touchmove', (e) => {
+    if (y0 === null) return;
+    const t = e.touches[0], dy = t.clientY - y0;
+    if (dy <= 0 || Math.abs(t.clientX - x0) > dy || window.scrollY > 0) { reset(); return; }
+    if (e.cancelable) e.preventDefault();
+    dist = Math.min(dy * 0.6, 110);
+    ptr.hidden = false;
+    ptr.style.transform = `translate(-50%, ${dist}px)`;
+    ptr.textContent = dist >= READY ? '놓으면 새로고침' : '당겨서 새로고침';
+  }, { passive: false });
+  const end = async (cancel) => {
+    if (y0 === null) return;
+    const go = !cancel && dist >= READY;
+    y0 = null;
+    if (!go) { reset(); return; }
+    busy = true;
+    ptr.textContent = '새로고침 중…';
+    try { await refresh(); } finally { busy = false; reset(); }
+  };
+  document.addEventListener('touchend', () => end(false));
+  document.addEventListener('touchcancel', () => end(true));
+})();
 $('onlyStuck').onchange = drawSessions;
 
 $('sessions').addEventListener('click', (e) => {
@@ -564,12 +2176,18 @@ $('cfgSave').onclick = () => {
   location.reload();
 };
 
+// 복구 링크로 돌아왔나 — 라우터보다 먼저 해시를 읽고 주소창에서 지운다
+const AUTH_FRAG = /access_token=|error_code=|error=/.test(location.hash) ? readAuthFragment(location.hash) : null;
+if (AUTH_FRAG) history.replaceState(null, '', location.href.split('#')[0]);
+
 if (!CFG) {
   show('setup', true);
+} else if (AUTH_FRAG) {
+  openRecovery(AUTH_FRAG);
 } else if (token) {
   enter();
 } else {
-  show('gate', true);
+  gateView('loginBox');
 }
 </script>
 </body>
