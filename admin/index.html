@@ -123,7 +123,7 @@
   .center { max-width: 380px; margin: 12vh auto; }
   .err { color: var(--flag); font-size: 13px; min-height: 18px; }
   button.link { border: 0; background: none; padding: 4px 0; color: var(--accent); text-decoration: underline; font-size: 13.5px; }
-  #loginBox .note, #forgotBox .note { margin: 0; }
+  #loginBox .note { margin: 0; }
   .stack > * + * { margin-top: 10px; }
   /* ── 운영(M4) ── */
   select, textarea {
@@ -278,43 +278,21 @@
 
 <!-- ── 로그인 (2026-09-24 · 이메일+비밀번호) ────────────────────────────────
      앱과 **같은 계정**(Supabase Auth)으로 들어온다. 콘솔 전용 계정을 따로 만들지 않는다.
-     ⛔ 비밀번호는 이 파일·SQL 어디에도 없다 — 운영자가 [비밀번호 재설정] 메일로 **직접** 정한다.
+     ⛔ 비밀번호는 이 파일·SQL 어디에도 없다 — 최고관리자가 첫 비밀번호를 주고, 운영자가 «내 계정»에서 직접 바꾼다.
+     ★ 2026-09-25 — 로그인 전 [비밀번호 재설정](메일 요청) 화면을 뺐다(형님 지시). 잊으면 최고관리자에게 묻는다.
+        Supabase 대시보드에서 보낸 재설정 링크로 들어오는 «새 비밀번호 정하기»(resetBox)는 남겨 둔다.
         브라우저에도 저장하지 않는다(받은 토큰만 저장). 입력칸은 쓰고 나면 바로 비운다.        -->
 <main id="gate" hidden>
   <form class="card center stack" id="loginBox" autocomplete="on">
     <h2>운영자 로그인</h2>
     <p class="why">
-      앱과 같은 계정의 이메일과 비밀번호로 들어옵니다.
-      비밀번호를 정한 적이 없거나 잊었으면 [비밀번호 재설정]으로 메일을 받아 직접 정하세요.
+      운영자 이메일과 비밀번호로 들어옵니다.
+      비밀번호를 잊었으면 최고관리자에게 문의하세요.
     </p>
     <input id="email" type="email" placeholder="이메일" autocomplete="username" required>
     <input id="password" type="password" placeholder="비밀번호" autocomplete="current-password" required>
     <button class="primary" id="go" type="submit" style="width:100%">로그인</button>
     <div class="err" id="gateErr" role="alert"></div>
-    <button class="link" id="forgot" type="button">비밀번호 재설정</button>
-  </form>
-
-  <form class="card center stack" id="forgotBox" hidden>
-    <h2>비밀번호 재설정</h2>
-    <p class="why">
-      운영자 이메일로 재설정 메일을 보냅니다. 메일의 링크를 누르면 이 콘솔로 돌아와 새 비밀번호를 정합니다.
-      링크는 한 번만 쓸 수 있고 오래 두면 만료됩니다.
-    </p>
-    <input id="fEmail" type="email" placeholder="이메일" autocomplete="username" required>
-    <button class="primary" id="fSend" type="submit" style="width:100%">재설정 메일 받기</button>
-    <div class="note" id="fMsg" role="status"></div>
-    <details class="help">
-      <summary>링크를 눌렀는데 이 화면으로 돌아오지 않았다면</summary>
-      <p class="why">
-        콘솔을 파일로 열었거나 이 주소가 서버의 «허용된 이동 주소(Redirect URLs)»에 없으면 다른 페이지로 갑니다.
-        그때 열린 페이지의 <b>주소창 주소 전체</b>를 복사해 여기 붙여넣으세요.
-      </p>
-      <div class="row">
-        <input id="fPaste" placeholder="https://…#access_token=…&amp;type=recovery" style="flex:1">
-        <button id="fPasteGo" type="button">이 링크로 계속</button>
-      </div>
-    </details>
-    <button class="link" id="fBack" type="button">로그인으로 돌아가기</button>
   </form>
 
   <form class="card center stack" id="resetBox" hidden>
@@ -2279,31 +2257,28 @@ function authMessage(e, where) {
   const m = String(e.message || '');
   const code = String(e.code || '');
   if (e.status === 429 || /rate.?limit|too many|security purposes/i.test(m + code))
-    return where === 'forgot'
-      ? '메일을 너무 자주 요청했습니다 — 1분쯤 뒤에 다시 받으세요'
-      : '시도가 너무 많습니다 — 잠시 뒤에 다시 하세요';
+    return '시도가 너무 많습니다 — 잠시 뒤에 다시 하세요';
   if (/invalid_credentials|invalid_grant/i.test(code) || /invalid login credentials/i.test(m))
     return where === 'reauth'
       ? '비밀번호가 맞지 않습니다'
-      : '이메일 또는 비밀번호가 맞지 않습니다. 비밀번호를 정한 적이 없거나 잊었으면 [비밀번호 재설정]을 누르세요';
+      : '이메일 또는 비밀번호가 맞지 않습니다. 비밀번호를 잊었으면 최고관리자에게 문의하세요';
   if (/email_not_confirmed|email not confirmed/i.test(code + m)) return '이메일 확인이 끝나지 않은 계정입니다 — 가입 확인 메일부터 여세요';
   if (/same_password|should be different/i.test(code + m)) return '지금 비밀번호와 같습니다 — 다른 비밀번호를 정하세요';
   if (/weak_password|password should|at least/i.test(code + m)) return '서버의 비밀번호 규칙에 맞지 않습니다 — ' + m;
   if (e.status === 401 || /jwt|expired|session/i.test(code + m))
-    return where === 'reset' ? '재설정 링크가 만료됐습니다 — 재설정 메일을 다시 받으세요' : '로그인이 만료됐습니다 — 다시 로그인하세요';
-  return (where === 'forgot' ? '메일을 보내지 못했습니다 — ' : where === 'reset' ? '저장하지 못했습니다 — ' : '로그인하지 못했습니다 — ') + m;
+    return where === 'reset' ? '재설정 링크가 만료됐습니다 — 최고관리자에게 문의하세요' : '로그인이 만료됐습니다 — 다시 로그인하세요';
+  return (where === 'reset' ? '저장하지 못했습니다 — ' : '로그인하지 못했습니다 — ') + m;
 }
 
 function gateView(which, note) {
   show('app', false); show('setup', false); show('gate', true);
   show('reload', false); show('out', false);     // 로그인 전에는 누를 게 없다
   show('menuBtn', false); setMenu(false);
-  ['loginBox', 'forgotBox', 'resetBox'].forEach((id) => show(id, id === which));
+  ['loginBox', 'resetBox'].forEach((id) => show(id, id === which));
   $('password').value = ''; $('rPw').value = ''; $('rPw2').value = '';
   $('gateErr').textContent = which === 'loginBox' && note ? note : '';
-  $('fMsg').textContent = which === 'forgotBox' && note ? note : '';
   $('rErr').textContent = '';
-  const first = { loginBox: $('email').value ? 'password' : 'email', forgotBox: 'fEmail', resetBox: 'rPw' }[which];
+  const first = { loginBox: $('email').value ? 'password' : 'email', resetBox: 'rPw' }[which];
   setTimeout(() => $(first).focus(), 0);
 }
 
@@ -2328,27 +2303,6 @@ $('loginBox').addEventListener('submit', async (ev) => {
   }
 });
 
-/* resetPasswordForEmail — 계정이 있든 없든 같은 답을 준다(있는 이메일인지 알려 주지 않는다) */
-$('forgot').onclick = () => { $('fEmail').value = $('email').value.trim(); gateView('forgotBox'); };
-$('fBack').onclick = () => gateView('loginBox');
-$('forgotBox').addEventListener('submit', async (ev) => {
-  ev.preventDefault();
-  const email = $('fEmail').value.trim();
-  if (!email) { $('fMsg').textContent = '이메일을 넣어 주세요'; return; }
-  $('fSend').disabled = true;
-  $('fMsg').textContent = '';
-  try {
-    // 메일의 링크가 돌아올 곳 = 지금 이 콘솔(해시 빼고). 서버의 Redirect URLs 에 있어야 여기로 온다
-    const back = location.href.split('#')[0];
-    await api('/auth/v1/recover?redirect_to=' + encodeURIComponent(back), { email }, false);
-    $('fMsg').textContent = '운영자 계정이면 몇 분 안에 재설정 메일이 갑니다. 스팸함도 확인하세요. 메일의 링크를 누르면 새 비밀번호를 정합니다.';
-  } catch (e) {
-    $('fMsg').textContent = authMessage(e, 'forgot');
-  } finally {
-    $('fSend').disabled = false;
-  }
-});
-
 /*
  * 복구 링크 — 메일의 링크를 누르면 Supabase 가 이 페이지로 돌려보내며 **해시**에 토큰을 싣는다
  *   #access_token=…&refresh_token=…&type=recovery        (성공)
@@ -2367,9 +2321,9 @@ function readAuthFragment(text) {
 
 async function openRecovery(frag) {
   if (frag.error) {
-    gateView('forgotBox', /expired|invalid/i.test(frag.error + frag.desc)
-      ? '재설정 링크가 만료됐거나 이미 쓰였습니다 — 아래에서 메일을 다시 받으세요'
-      : '재설정 링크를 열지 못했습니다 — 메일을 다시 받으세요');
+    gateView('loginBox', /expired|invalid/i.test(frag.error + frag.desc)
+      ? '재설정 링크가 만료됐거나 이미 쓰였습니다 — 최고관리자에게 문의하세요'
+      : '재설정 링크를 열지 못했습니다 — 최고관리자에게 문의하세요');
     return;
   }
   if (frag.type !== 'recovery') {
@@ -2385,16 +2339,9 @@ async function openRecovery(frag) {
     $('rEmailHint').value = me.email || '';     // 비밀번호 관리자가 어느 계정의 새 비밀번호인지 알게
   } catch (e) {
     RECOVERY = null;
-    gateView('forgotBox', authMessage(e, 'reset'));
+    gateView('loginBox', authMessage(e, 'reset'));
   }
 }
-
-$('fPasteGo').onclick = () => {
-  const frag = readAuthFragment($('fPaste').value.trim());
-  $('fPaste').value = '';
-  if (!frag) { $('fMsg').textContent = '주소에 재설정 정보(#access_token=…)가 없습니다 — 메일의 링크를 누른 뒤 열린 주소 전체를 붙여넣으세요'; return; }
-  openRecovery(frag);
-};
 
 $('rBack').onclick = () => { RECOVERY = null; gateView('loginBox'); };
 $('resetBox').addEventListener('submit', async (ev) => {
@@ -2403,7 +2350,7 @@ $('resetBox').addEventListener('submit', async (ev) => {
   $('rErr').textContent = '';
   if (a.length < 8) { $('rErr').textContent = '8자 이상으로 정하세요'; return; }
   if (a !== b) { $('rErr').textContent = '두 칸이 다릅니다'; $('rPw2').value = ''; $('rPw2').focus(); return; }
-  if (!RECOVERY) { gateView('forgotBox', '재설정 링크가 없습니다 — 메일을 다시 받으세요'); return; }
+  if (!RECOVERY) { gateView('loginBox', '재설정 링크가 없습니다 — 최고관리자에게 문의하세요'); return; }
   $('rSave').disabled = true;
   try {
     await api('/auth/v1/user', { password: a }, false, 'PUT', RECOVERY);   // updateUser({ password })
