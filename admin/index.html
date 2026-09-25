@@ -175,7 +175,7 @@
   .task-links strong { display: flex; justify-content: space-between; font-size: 16px; margin: 8px 0 10px; }
   .task-links strong span { color: var(--go); }
   .task-links p { margin: 0; font-size: 12.5px; color: var(--mut); }
-  #page-overview > .card, #page-appeals > .card, #page-restrictions > .card, #page-feedback > .card, #page-popups > .card, #page-operators > .card, #page-account > .card,
+  #page-overview > .card, #page-appeals > .card, #page-restrictions > .card, #page-feedback > .card, #page-popups > .card, #page-templates > .card, #page-operators > .card, #page-account > .card,
   #page-members > .card, #page-control > .card, #page-crashes > .card, #page-audit > .card { grid-column: 1 / -1; }
   details.help { font-size: 12.5px; color: var(--mut); margin: 4px 0 14px; }
   details.help summary { cursor: pointer; width: fit-content; }
@@ -197,6 +197,19 @@
   .pop-btns .muted { color: var(--mut); }
   .pop-thumb { width: 54px; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 6px; border: 1px solid var(--line); display: block; }
   @media (max-width: 1000px) { .pop-edit { grid-template-columns: 1fr; } .pop-phone { max-width: 320px; } }
+  /* 기본 양식 — 종류마다 편집칸 + 미리보기 한 쌍 */
+  .tpl-block { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 24px; align-items: start;
+               padding: 18px 0; border-top: 1px solid var(--line); }
+  .tpl-block:first-of-type { border-top: 0; padding-top: 6px; }
+  .tpl-block h3 { margin: 0 0 4px; font-size: 16px; }
+  .tpl-block textarea { min-height: 150px; font: inherit; line-height: 1.55; }
+  .tpl-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
+  .tpl-chips button { padding: 4px 10px; border-radius: 99px; font-size: 12.5px; }
+  .tpl-preview { white-space: pre-wrap; word-break: break-all; background: var(--bg); border: 1px solid var(--line);
+                 border-radius: 12px; padding: 12px 14px; font-size: 13.5px; line-height: 1.55; min-height: 60px; }
+  .tpl-preview mark { background: none; color: var(--go); font-weight: 600; }
+  .note.warn { color: var(--wait); }
+  @media (max-width: 1000px) { .tpl-block { grid-template-columns: 1fr; } }
   .fb-item { border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; }
   .fb-item.unread { border-color: var(--accent); }
   .fb-item h3 { font-size: 15px; margin: 6px 0 4px; }
@@ -351,6 +364,7 @@
         <a href="#crashes" data-page="crashes"><span class="nav-dot" aria-hidden="true"></span>오류·크래시</a>
         <a href="#feedback" data-page="feedback"><span class="nav-dot" aria-hidden="true"></span>불편 신고<span class="nav-count" id="fbNavCount" hidden></span></a>
         <a href="#popups" data-page="popups"><span class="nav-dot" aria-hidden="true"></span>팝업 관리</a>
+        <a href="#templates" data-page="templates"><span class="nav-dot" aria-hidden="true"></span>기본 양식</a>
         <p class="nav-group">관리</p>
         <a href="#control" data-page="control"><span class="nav-dot" aria-hidden="true"></span>서비스 제어</a>
         <a href="#audit" data-page="audit"><span class="nav-dot" aria-hidden="true"></span>감사 기록</a>
@@ -752,6 +766,29 @@
               <p class="note" id="popPreviewLink"></p>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section class="grid page" id="page-templates" hidden>
+        <!-- ══ 기본 양식 (2026-09-25) ═══════════════════════════════════════
+             지원·취소·감사·정산 네 문자의 «기본 문장». 팝업과 같은 틀 — 콘텐츠·최고관리자(+관리자).
+             서버: 20260925140000_default_templates.sql (get_default_templates · admin_default_template_upsert) -->
+        <div class="card" id="cardTemplates" data-roles="owner,content">
+          <h2>기본 문자 양식</h2>
+          <details class="help" open><summary>반영 규칙</summary>
+          <p class="why">
+            여기서 고친 문장은 <b>자기 문장을 한 번도 안 고친 사람</b>에게만 반영된다 — 신규 사용자, 그리고 그 양식을 손대지 않은 기존 사용자.
+            <b>이미 자기 문장으로 고친 사람은 절대 덮어쓰지 않는다.</b> 앱은 켤 때 받아 가고, 서버를 못 받으면 앱에 들어 있는 기본값을 쓴다.
+            게스트(로그인 전 온보딩)도 받는다 — 누구나 볼 수 있는 문장이라 개인정보·내부 자료를 넣지 않는다.
+          </p>
+          <p class="why">
+            <b>{지역}</b> 같은 값 자리는 아래 칩으로만 넣는다 — 손으로 친 값 자리는 오타 하나로 빈칸이 된다.
+            양식마다 채울 수 있는 값이 다르다(예: 계좌는 정산에만). 그 양식에서 못 채우는 값 자리가 있으면 저장하지 않는다.
+            90자를 넘으면 문자가 여러 통으로 나뉘어 나간다 — 막지는 않고 알린다.
+          </p>
+          </details>
+          <span class="note" id="tplMsg" style="margin:0"></span>
+          <div id="tplList"></div>
         </div>
       </section>
 
@@ -1198,6 +1235,9 @@ const PAGES = {
   popups: { title: '팝업 관리', desc: '앱 메인에 뜨는 공지·이벤트 이미지를 등록하고 켜고 끕니다. 게스트에게도 보이는 공개 이미지입니다.',
     roles: ['owner', 'content'], m4: true,
     load: [['cardPopups', drawPopups]] },
+  templates: { title: '기본 양식', desc: '지원·취소·감사·정산 문자의 기본 문장을 고칩니다. 자기 문장을 고친 적 없는 사용자에게만 반영됩니다.',
+    roles: ['owner', 'content'], m4: true,
+    load: [['cardTemplates', drawTemplates]] },
   crashes: { title: '오류·크래시', desc: '영향받은 사람 수로 정렬한 크래시와 스택을 확인합니다.',
     roles: ['owner', 'support', 'analyst'],
     load: [['cardCrashes', drawCrashes]] },
@@ -2055,6 +2095,106 @@ $('popSave').onclick = async () => {
   }
 };
 $('fbFilter').onchange = () => guard('cardFeedback', drawFeedback);
+
+/* ── 기본 양식 (2026-09-25) ────────────────────────────────────────────
+   지원·취소·감사·정산의 기본 문장. 앱은 «안 고친 사람»에게만 이 문장을 쓴다(판정은 앱이 한다).
+   값 자리 목록은 앱의 MessageSlot.APPLY/CANCEL/THANKS/SETTLE 와 **같아야 한다** — 앱이 못 채우는 자리는
+   글자 그대로 나가 버린다. 그래서 목록 밖 자리가 있으면 저장하지 않는다.                                  */
+const TPL_MISSING = '기본 양식 마이그레이션(20260925140000_default_templates.sql)이 아직 적용되지 않았습니다';
+const TPL_KINDS = [
+  { type: 'apply',  label: '지원 문자', note: '조건에 맞는 글에 자동으로 나가는 첫 연락.',
+    slots: ['{지역}', '{날짜}', '{급}', '{경력}', '{이름}', '{나이}', '{희망일당}', '{자격증}'] },
+  { type: 'cancel', label: '취소 문자', note: '다른 곳에 확정되면 아직 답 없는 곳에 자동으로 나간다.',
+    slots: ['{이름}', '{지역}', '{공정}', '{날짜}'] },
+  { type: 'thanks', label: '감사 문자', note: '일이 끝난 저녁에 사용자가 «보내기»를 눌러야 나간다.',
+    slots: ['{이름}', '{날짜}', '{현장}', '{공정}'] },
+  { type: 'settle', label: '정산 문자', note: '일당을 못 받았을 때 사용자가 «보내기»를 눌러야 나간다. 금액 자리는 없다(앱이 모르는 값).',
+    slots: ['{이름}', '{날짜}', '{현장}', '{계좌}'] },
+];
+/* 미리보기용 예시 값 — 실제 사람 값이 아니다 */
+const TPL_SAMPLE = { '{지역}': '일산', '{날짜}': '9월 26일', '{급}': '조공', '{경력}': '8개월', '{이름}': '홍길동',
+  '{나이}': '35', '{희망일당}': '17만', '{자격증}': '고소작업대', '{공정}': '필름', '{현장}': '일산 후곡마을', '{계좌}': '국민 000-00-0000' };
+let TPL_ROWS = {};
+const TPL_REQ = {};            // 종류마다 요청 ID — 저장을 두 번 눌러도 한 번(성공하면 새로 딴다)
+async function tpl(fn) {
+  try { return await fn(); }
+  catch (e) { if (missingFn(e)) throw new Error(TPL_MISSING); throw e; }
+}
+const tplTokens = (text) => [...new Set(String(text).match(/\{[^{}]{1,8}\}/g) || [])];
+function tplPreview(text) {
+  return esc(text).replace(/\{[^{}]{1,8}\}/g, (tok) => TPL_SAMPLE[tok] ? `<mark>${esc(TPL_SAMPLE[tok])}</mark>` : tok);
+}
+function tplState(k) {
+  const ta = $('tplBody_' + k.type), row = TPL_ROWS[k.type];
+  const text = ta.value, len = text.trim().length;
+  const bad = tplTokens(text).filter((t) => !k.slots.includes(t));
+  $('tplPrev_' + k.type).innerHTML = text.trim() ? tplPreview(text) : '<span class="muted">비어 있습니다</span>';
+  $('tplLen_' + k.type).textContent = `${len}자` + (len > 90 ? ' — 90자를 넘어 여러 통으로 나뉘어 나갑니다' : '');
+  $('tplLen_' + k.type).className = 'note' + (len > 90 ? ' warn' : '');
+  $('tplErr_' + k.type).textContent = bad.length ? `이 양식에서 못 채우는 값 자리: ${bad.join(' ')} — 지우거나 칩으로 다시 넣어 주세요` : '';
+  $('tplSave_' + k.type).disabled = !len || bad.length > 0 || (row && text === row.body);
+}
+async function drawTemplates() {
+  const rows = await tpl(() => rpc('admin_default_templates'));
+  TPL_ROWS = Object.fromEntries((rows || []).map((r) => [r.type, r]));
+  $('tplList').innerHTML = TPL_KINDS.map((k) => {
+    const r = TPL_ROWS[k.type];
+    const meta = !r ? '아직 없습니다 — 저장하면 만들어집니다'
+      : `판 ${esc(r.revision)} · ${r.editor ? `${esc(when(r.updated_at))} · ${esc(r.editor)}` : '앱 기본값에서 옮긴 문장(아직 아무도 안 고침)'}`;
+    return `<div class="tpl-block" data-tpl="${k.type}">
+      <div class="stack">
+        <div><h3>${esc(k.label)}</h3><p class="note" style="margin:0">${esc(k.note)}</p></div>
+        <textarea id="tplBody_${k.type}" aria-label="${esc(k.label)} 기본 문장">${esc(r ? r.body : '')}</textarea>
+        <div class="tpl-chips" aria-label="값 자리 넣기">${k.slots.map((t) =>
+          `<button type="button" data-tplslot="${k.type}" data-tok="${esc(t)}">${esc(t)}</button>`).join('')}</div>
+        <p class="note" id="tplLen_${k.type}" style="margin:0"></p>
+        <div class="row">
+          <input id="tplReason_${k.type}" placeholder="이유 — 감사 기록에 남는다(비우면 «기본 양식 수정»)" style="flex:1">
+          <button class="primary" id="tplSave_${k.type}" data-tplsave="${k.type}">저장</button>
+        </div>
+        <p class="note" style="margin:0">마지막 수정 — ${meta}</p>
+        <div class="err" id="tplErr_${k.type}"></div>
+      </div>
+      <div>
+        <p class="note" style="margin:0 0 8px">미리보기 — 예시 값으로 채움</p>
+        <div class="tpl-preview" id="tplPrev_${k.type}"></div>
+      </div>
+    </div>`;
+  }).join('');
+  TPL_KINDS.forEach(tplState);
+}
+$('tplList').addEventListener('input', (e) => {
+  const k = TPL_KINDS.find((x) => e.target.id === 'tplBody_' + x.type);
+  if (k) { $('tplMsg').textContent = ''; tplState(k); }
+});
+$('tplList').addEventListener('click', async (e) => {
+  const chip = e.target.closest('[data-tplslot]');
+  if (chip) {
+    const k = TPL_KINDS.find((x) => x.type === chip.dataset.tplslot), ta = $('tplBody_' + k.type);
+    const at = ta.selectionStart ?? ta.value.length, end = ta.selectionEnd ?? at, tok = chip.dataset.tok;
+    ta.value = ta.value.slice(0, at) + tok + ta.value.slice(end);
+    ta.focus(); ta.selectionStart = ta.selectionEnd = at + tok.length;
+    tplState(k);
+    return;
+  }
+  const btn = e.target.closest('[data-tplsave]');
+  if (!btn) return;
+  const k = TPL_KINDS.find((x) => x.type === btn.dataset.tplsave);
+  const body = $('tplBody_' + k.type).value;
+  const reason = $('tplReason_' + k.type).value.trim() || '기본 양식 수정';
+  btn.disabled = true;
+  try {
+    const res = await tpl(() => rpc('admin_default_template_upsert', {
+      p_request_id: (TPL_REQ[k.type] ||= crypto.randomUUID()), p_type: k.type, p_body: body, p_reason: reason,
+    }));
+    delete TPL_REQ[k.type];
+    await Promise.all([guard('cardTemplates', drawTemplates), guard('cardAudit', drawAudit)]);
+    $('tplMsg').textContent = `${k.label} 저장했습니다 — 판 ${res.revision}. 안 고친 사용자의 앱이 다음에 켤 때 받아 갑니다.`;
+  } catch (err) {
+    $('tplErr_' + k.type).textContent = err.message;
+    btn.disabled = false;
+  }
+});
 
 /*
  * 재인증 — 비밀번호를 다시 넣어 토큰을 새로 받는다. 토큰의 인증 시각(amr[].timestamp)이 지금으로 바뀐다.
