@@ -609,14 +609,13 @@
            열람 사유 → [열람] → 서버가 최고관리자·15분 재인증을 보고, admin_access_log 에 1행을 남긴 뒤 준다.
            ⛔ 이 화면에 들어온다고 불러오지 않는다 — 사유를 적고 누를 때만 부른다. -->
       <section class="page v2" id="page-member" hidden>
-        <div class="notice" id="mdNotice" style="margin-top:12px">🔒 이 열람은 <b>기록됩니다</b>(누가·언제·왜). 본인 정보만 표시하며, 구인자(제3자) 번호와 문자 본문은 마스킹됩니다.<span id="mdReasonShown"></span></div>
-        <div class="card" id="cardMemberGate">
+        <div class="notice" id="mdNotice" style="margin-top:12px">🔒 이 열람은 <b>기록됩니다</b>(누가·언제·왜). 본인 정보만 표시하며, 구인자(제3자) 번호와 문자 본문은 마스킹됩니다.</div>
+        <!-- ★ 09-27 — 열람 사유를 묻지 않는다. 불러오지 못했을 때만 이유와 [다시 불러오기]가 뜬다 -->
+        <div class="card" id="cardMemberGate" hidden>
           <div class="gate">
-            <label for="mdReason">열람 사유</label>
-            <input id="mdReason" placeholder="예: 신고 #12 조사 · 미수금 문의 응대" maxlength="500">
-            <button class="btn pri" id="mdOpen">열람</button>
+            <div class="err" id="mdErr" role="alert" style="flex:1;margin:0"></div>
+            <button class="btn pri" id="mdOpen">다시 불러오기</button>
           </div>
-          <div class="err" id="mdErr" role="alert"></div>
         </div>
         <div id="memberBody" hidden></div>
       </section>
@@ -1827,34 +1826,34 @@ const ICON_BLOCK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" s
 function memberEnter(who) {
   who = decodeURIComponent(who || '').trim();
   $('pageTitle').textContent = '회원 상세 — ' + (who || '—');
-  if (who === MD.who) return;           // [새로고침]이 다시 부르지 않는다 — 열람은 누를 때만
-  MD = { who, reason: '', data: null };
+  if (who === MD.who) return;           // [새로고침]이 다시 부르지 않는다(열람 기록이 또 남지 않게)
+  MD = { who, data: null };
   $('memberBody').hidden = true; $('memberBody').innerHTML = '';
-  $('cardMemberGate').hidden = false;
-  $('mdReasonShown').innerHTML = '';
   closeBodyToast();
   const okId = /^[0-9a-f]{8}$/i.test(who);
   $('mdOpen').disabled = !okId;
   $('mdErr').textContent = okId ? '' : '주소에 회원 ID 앞 8자가 없습니다 — 회원 관리에서 줄을 눌러 여세요';
-  // 열람 전에도 화면 틀(시안 그대로)은 보인다 — 값은 «—». 사유를 적고 [열람]을 누르면 채운다
-  if (okId) renderMember({});
+  $('cardMemberGate').hidden = okId;
+  // 불러오는 동안에도 화면 틀(시안 그대로)은 보인다 — 값은 «—»
+  if (okId) { renderMember({}); loadMember(); }   // 들어오면 바로 불러온다(09-27 — 사유 없이)
 }
 
-$('mdOpen').onclick = async () => {
-  const reason = $('mdReason').value.trim();
-  if (!reason) { $('mdErr').textContent = '열람 사유를 적어 주세요 — 감사 기록에 남습니다'; $('mdReason').focus(); return; }
-  $('mdOpen').disabled = true; $('mdErr').textContent = '';
+/** 회원 한 명을 불러온다 — 사유 없이(서버가 «회원 상세 열람»으로 기록 1행). 재인증이 필요하면 그 말을 띄운다 */
+async function loadMember() {
+  const who = MD.who;
+  $('mdOpen').disabled = true;
   try {
-    const d = await v2(() => rpc('admin_member_detail', { p_user_prefix: MD.who, p_reason: reason }));
-    MD.reason = reason; MD.data = d;
-    $('mdReasonShown').innerHTML = ` · 열람 사유: <b>${esc(reason)}</b>`;
+    const d = await v2(() => rpc('admin_member_detail', { p_user_prefix: who }));
+    if (MD.who !== who) return;             // 그 사이 다른 회원으로 옮겼다
+    MD.data = d;
     $('cardMemberGate').hidden = true;
     renderMember();
   } catch (e) {
-    $('mdErr').textContent = reauthHint(e);
+    $('mdErr').textContent = '불러오지 못했습니다 — ' + reauthHint(e);
+    $('cardMemberGate').hidden = false;
   } finally { $('mdOpen').disabled = false; }
-};
-$('mdReason').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('mdOpen').click(); });
+}
+$('mdOpen').onclick = () => loadMember();
 
 function careerText(first) {
   if (!first) return '—';
@@ -1987,7 +1986,7 @@ function sendCard(s, limit, shadow) {
         <span class="muted" style="font-size:12px">0~100 · 오늘(한국 날짜)만 · 내일은 기본 ${num(s.default_limit)}통</span>
       </div>
       <div class="gate" style="margin-top:8px">
-        <input id="mdLimitReason" placeholder="이유 — 감사 기록에 남는다(필수)">
+        <input id="mdLimitReason" placeholder="변경 사유 — 감사 기록에 남습니다(필수)">
         <button class="btn pri" type="button" id="mdLimitSave">저장</button>
         ${ov ? `<button class="btn" type="button" id="mdLimitReset">기본값(${num(s.default_limit)}통)으로</button>` : ''}
         <button class="btn" type="button" id="mdLimitCancel">취소</button>
@@ -1998,7 +1997,7 @@ function sendCard(s, limit, shadow) {
 
 async function saveLimit(value) {
   const reason = $('mdLimitReason').value.trim();
-  if (!reason) { $('mdLimitErr').textContent = '이유를 적어 주세요 — 감사 기록에 남습니다'; return; }
+  if (!reason) { $('mdLimitErr').textContent = '변경 사유를 적어 주세요 — 감사 기록에 남습니다'; return; }
   if (value !== null && !(Number.isInteger(value) && value >= 0 && value <= 100)) {
     $('mdLimitErr').textContent = '하루 한도는 0~100 사이 정수입니다'; return;
   }
@@ -2041,7 +2040,7 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeBodyT
 async function openBody(id) {
   showBodyToast('<div class="hd">실제 발송 본문 <button type="button" id="btClose">닫기</button></div><div class="body">불러오는 중…</div>');
   try {
-    const r = await rpc('admin_message_body', { p_message_log_id: id, p_reason: MD.reason });
+    const r = await rpc('admin_message_body', { p_message_log_id: id });
     showBodyToast(`<div class="hd">실제 발송 본문 · #${esc(r.id)} · ${when(r.sent_at)} · 구인자 ····${esc(r.target_last4 || '')}<button type="button" id="btClose">닫기</button></div>` +
       `<div class="body">${r.purged ? '보유 기간(90일)이 지나 본문이 파기됐습니다.' : esc(r.body)}</div>` +
       '<div class="foot">🔒 이 열람은 기록됩니다 · 신고·조사 목적 · 90일 내 건만 · 번호·계좌 자동 마스킹</div>');
@@ -2876,6 +2875,8 @@ $('reauth').onclick = async () => {
       $('rePw').value = '';
       setToken(t.access_token);
       await loadRole();                     // «재인증 유효»로 바뀐다
+      // 회원 상세가 재인증 때문에 못 열렸으면 바로 다시 부른다
+      if (MD.who && !MD.data && /^#member=/.test(location.hash)) loadMember();
     } catch (e) {
       $('rePw').value = '';
       $('reErr').textContent = authMessage(e, 'reauth');
