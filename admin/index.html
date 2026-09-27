@@ -233,6 +233,15 @@
           --wait:#aab5af; --waitSoft:#262b29; --kakaoSoft:#3a3314; --kakaoInk:#f3dc6a; --card:#1b1e21; }
   }
   body.v2-on .workspace-main { max-width: calc(1080px + 2 * clamp(18px, 3vw, 44px)); }
+  body.v2-on.v2-wide .workspace-main { max-width: none; }
+  .v2 #members th, .v2 #members td { padding: 11px 7px; }
+  .v2 #members td.acts { white-space: nowrap; text-align: right; }
+  .v2 #members td.wrap { white-space: normal; min-width: 64px; max-width: 150px; }
+  .v2 #members td.acts .lnk { display: block; margin: 2px 0 2px auto; }
+  /* 회원 상세 — 시안처럼 «‹ 회원 목록» 이 제목 위, 설명 줄 없음. 재인증 입력 중일 때만 운영 줄을 보인다 */
+  .backlink-top { display: inline-flex; color: #23654D; font-weight: 700; font-size: 13px; text-decoration: none; margin: -6px 0 6px; }
+  body.at-member .page-desc { display: none; }
+  body.at-member .ops-title:not(:has(input)) { display: none; }
   body.v2-on .page-title { font-size: 22px; font-weight: 800; letter-spacing: -.02em; }
   body.v2-on .page-desc { font-size: 13.5px; margin: 5px 0 14px; }
   .v2 .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px; margin-top: 16px; min-width: 0; }
@@ -500,6 +509,7 @@
       <div id="banner" class="card" hidden
            style="border-color:var(--flag); color:var(--flag); margin-bottom:16px;"></div>
       <div class="crumb">워크스페이스 / <span id="crumb"></span></div>
+      <a class="backlink-top" id="backToMembers" href="#members" hidden>‹ 회원 목록</a>
       <h2 class="page-title" id="pageTitle" tabindex="-1"></h2>
       <p class="page-desc" id="pageDesc"></p>
       <div class="ops-title">운영 — 역할: <b id="roleText">확인 중</b> · <span id="opsNote"></span></div>
@@ -569,7 +579,7 @@
       <section class="page v2" id="page-members" hidden>
         <div class="card" id="cardMembers" data-roles="owner,support">
           <div class="tools">
-            <input id="memSearch" type="search" placeholder="회원 ID·이메일·공정·지역 검색" aria-label="회원 검색">
+            <input id="memSearch" type="search" placeholder="회원 ID·이름·번호·공정·지역 검색" aria-label="회원 검색">
             <span class="chips" id="memFilter" role="group" aria-label="회원 거르기" style="margin:0">
               <button type="button" class="fbtn" data-f="all" aria-pressed="true">전체</button>
               <button type="button" class="fbtn" data-f="active" aria-pressed="false">활성</button>
@@ -598,9 +608,7 @@
            열람 사유 → [열람] → 서버가 최고관리자·15분 재인증을 보고, admin_access_log 에 1행을 남긴 뒤 준다.
            ⛔ 이 화면에 들어온다고 불러오지 않는다 — 사유를 적고 누를 때만 부른다. -->
       <section class="page v2" id="page-member" hidden>
-        <a class="backlink" href="#members">‹ 회원 목록</a>
-        <div class="notice" id="mdNotice">🔒 이 열람은 <b>기록됩니다</b>(누가·언제·왜). 본인 정보만 표시하며, 구인자(제3자) 번호는 뒤 4자리만 ·
-          문자 본문은 한 건씩 눌러 열고(또 기록) 번호·계좌는 가립니다.<span id="mdReasonShown"></span></div>
+        <div class="notice" id="mdNotice" style="margin-top:12px">🔒 이 열람은 <b>기록됩니다</b>(누가·언제·왜). 본인 정보만 표시하며, 구인자(제3자) 번호와 문자 본문은 마스킹됩니다.<span id="mdReasonShown"></span></div>
         <div class="card" id="cardMemberGate">
           <div class="gate">
             <label for="mdReason">열람 사유</label>
@@ -1507,11 +1515,11 @@ const PAGES = {
   monitor: { title: '발송 모니터', desc: '발송 결과와 이상 징후를 확인합니다. 문자 본문은 없습니다.',
     roles: ['owner', 'support', 'analyst'], m4: true,
     load: [['cardMonitor', () => drawMonitor(false)], ['cardAnom', drawAnomalies]] },
-  members: { title: '회원 관리', desc: '마스킹된 목록 — 실명·전체 번호는 여기 없습니다. 한 명을 열려면 행을 누르세요(새 탭 · 열람 기록됨).', v2: true,
+  members: { title: '회원 관리', desc: '한 명을 열려면 행을 누르세요(새 탭 · 열람 기록됨). 구인자 번호·문자 본문은 목록에 없습니다.', v2: true, wide: true,
     roles: ['owner', 'support'], m4: true,
     load: [['cardMembers', drawMembers]] },
   /* ★ 2026-09-26 · 회원 상세 — 메뉴 항목이 아니다(#member=<ID 앞 8자>). 최고관리자만 · 부르는 건 [열람]을 누를 때 */
-  member: { title: '회원 상세', desc: '열람 사유를 적고 [열람]을 누르면 기록을 남기고 엽니다.', v2: true,
+  member: { title: '회원 상세', desc: '', v2: true,
     roles: ['owner'], ownerOnly: true, m4: true, parent: 'members',
     load: [] },
   restrictions: { title: '이용 제한', desc: '걸려 있는 제한과 기기 적용 여부를 확인하고, 근거를 검토한 뒤 조치합니다.',
@@ -1591,6 +1599,9 @@ function route(focus) {
   $('pageTitle').textContent = p.title;
   $('pageDesc').textContent = p.desc;
   document.body.classList.toggle('v2-on', !!(ok && p.v2));   // 시안(console_proto) 모양 — 이 다섯 화면만
+  document.body.classList.toggle('v2-wide', !!(ok && p.wide)); // 회원 관리 — 표가 넓어 폭 제한을 푼다
+  document.body.classList.toggle('at-member', ok && id === 'member');
+  $('backToMembers').hidden = !(ok && id === 'member');
   document.title = p.title + ' · 일감레이더 운영자 콘솔';
   // 직접 들어온 권한 없는 화면 — 숨기지 말고 왜 못 여는지 말한다
   $('pageDeny').hidden = ok;
@@ -1739,8 +1750,9 @@ async function drawAnomalies() {
 }
 
 /*
- * ★ 2026-09-26 · 회원 관리 v2 — 가린 목록(최근 가입 500명) + 이 안에서 찾기·거르기·정렬.
- * 줄을 누르면 회원 상세를 **새 탭**으로 연다. 목록엔 실명·전체 번호가 없다(서버가 안 준다).
+ * ★ 2026-09-26 · 회원 관리 v2 — 목록(최근 가입 500명) + 이 안에서 찾기·거르기·정렬.
+ * 줄을 누르면 회원 상세를 **새 탭**으로 연다.
+ * ★ 2026-09-27 형님 결정 — 본인 이름·본인 번호는 **가리지 않는다**. 구인자 번호·문자 본문은 여전히 목록에 없다.
  */
 let MEMBERS = [];
 let MEM_FILTER = 'all';
@@ -1748,19 +1760,19 @@ const DAY = 86400000;
 const isActive = (r) => r.last_seen_at && Date.now() - new Date(r.last_seen_at).getTime() <= 14 * DAY;
 const MEM_COLS = [
   { h: '회원', f: (r) => `<b>${esc(r.who)}</b>`, tip: '회원 고유 ID 앞 8자. 누르면 상세가 새 창(탭)으로 열립니다' },
-  { h: '이름', f: (r) => esc(r.name_masked || '—'), tip: '회원 이름. 목록에선 가운데를 가립니다(전체는 상세에서 기록 후 열람)' },
-  { h: '연락처', cls: 'mask', f: (r) => (r.phone_last4 ? '····' + esc(r.phone_last4) : '—'), tip: '본인 연락처 뒤 4자리. 전체 번호는 상세에서 기록 후 열람' },
+  { h: '이름', f: (r) => esc(r.name || '—'), tip: '회원이 내 정보에 적은 이름' },
+  { h: '연락처', f: (r) => esc(r.phone || '—'), tip: '회원 본인 연락처(구인자 번호 아님)' },
   { h: '가입', f: (r) => when(r.joined_at), tip: '계정을 만든 날짜(한국 시간)' },
   { h: '경로', f: (r) => joinBadge(r.join_via), tip: '가입 경로 — 카카오 / 이메일. 카카오는 이메일이 없을 수 있음' },
   { h: '최근 실행', f: (r) => when(r.last_seen_at), tip: '앱을 마지막으로 켠 시각. 휴면 판단 기준(14일). 로그인한 상태만 잡힌다' },
   { h: '최근 발송', f: (r) => when(r.last_sent_at), tip: '마지막으로 문자를 보낸 시각(서버에 올라온 실제 발송)' },
-  { h: '주공정·급', f: (r) => (r.primary_trade ? esc(r.primary_trade + (r.primary_level ? '·' + r.primary_level : '')) : '—'), tip: '주 공정과 급(내 정보에서 주로 표시한 것)' },
-  { h: '지역', f: (r) => esc((r.regions || []).filter((x) => !x.includes(' ')).join('·') || '—'), tip: '일 받을 수 있는 권역(세부 시·구는 뺐다)' },
+  { h: '주공정·급', cls: 'wrap', f: (r) => (r.primary_trade ? esc(r.primary_trade + (r.primary_level ? '·' + r.primary_level : '')) : '—'), tip: '주 공정과 급(내 정보에서 주로 표시한 것)' },
+  { h: '지역', cls: 'wrap', f: (r) => esc((r.regions || []).filter((x) => !x.includes(' ')).join('·') || '—'), tip: '일 받을 수 있는 권역(세부 시·구는 뺐다)' },
   { h: '모드', f: (r) => modeBadge(r.shadow_mode), tip: '발송 모드 — 연습(수집연습모드 · 실제로 안 나감) / 실제(진짜 문자)' },
   { h: '7일 발송', k: 'sends_7d', n: true, tip: '최근 7일간 서버에 올라온 발송 건수. 연습 모드는 문자를 보내지 않아 여기 안 잡힌다' },
   { h: '누적', k: 'sends_total', n: true, tip: '가입 후 누적 총 발송 건수(서버에 올라온 것)' },
-  { h: '', f: (r) => `<button class="lnk" data-mon="${esc(r.who)}">발송 기록</button>` +
-      (ownerish() ? ` <span class="muted">·</span> <button class="lnk" data-rs="${esc(r.who)}">제한 검토</button>` : '') },
+  { h: '', cls: 'acts', f: (r) => `<button class="lnk" data-mon="${esc(r.who)}">발송 기록</button>` +
+      (ownerish() ? `<button class="lnk" data-rs="${esc(r.who)}">제한 검토</button>` : '') },
 ];
 async function drawMembers() {
   MEMBERS = await rpc('admin_members', { p_limit: 500 });
@@ -1768,7 +1780,7 @@ async function drawMembers() {
 }
 function renderMembers() {
   const q = $('memSearch').value.trim().toLowerCase();
-  const hay = (r) => [r.who, r.email_masked, r.primary_trade, r.primary_level, ...(r.regions || [])].join(' ').toLowerCase();
+  const hay = (r) => [r.who, r.name, r.phone, r.email_masked, r.primary_trade, r.primary_level, ...(r.regions || [])].join(' ').toLowerCase();
   const pass = { all: () => true, active: isActive, dormant: (r) => !isActive(r), real: (r) => r.shadow_mode === false };
   const key = { joined: 'joined_at', seen: 'last_seen_at', sent: 'last_sent_at', d7: 'sends_7d', total: 'sends_total' }[$('memSort').value];
   const val = (r) => { const v = r[key]; return v == null ? -Infinity : typeof v === 'number' ? v : new Date(v).getTime(); };
@@ -1855,8 +1867,8 @@ const card = (title, sub, body, extra = '') => `<div class="card"${extra}><h2>${
 const monthLabel = (ym) => { const [y, m] = String(ym).split('-'); return y == new Date().getFullYear() ? Number(m) + '월' : ym; };
 
 function renderMember() {
+  // 항목·순서는 시안(console_proto.html#member) 그대로 — 발송 현황 · 프로필/조건 · 소득/기기·유입 · 문자 양식 · 발송 이력
   const d = MD.data, pf = d.profile || {}, ac = d.account || {}, c = d.condition || {}, s = d.sending || {};
-  const trades = Array.isArray(pf.trades) ? pf.trades : [];
   const limit = s.override ? s.override.daily_limit : s.default_limit;
   const shadow = d.setting ? d.setting.shadow_mode : null;
   const dev = (d.devices || [])[0];
@@ -1864,6 +1876,8 @@ function renderMember() {
   const pay = c.wish_pay_by_trade && Object.keys(c.wish_pay_by_trade).length
     ? Object.entries(c.wish_pay_by_trade).map(([k, v]) => esc(`${k} ${won(v)}`)).join(' · ')
     : (c.wish_pay ? esc(won(c.wish_pay)) : null);
+  const mmdd = (iso) => { if (!iso) return '—'; const t = new Date(iso); const p2 = (n) => String(n).padStart(2, '0');
+    return `${p2(t.getMonth() + 1)}-${p2(t.getDate())} ${p2(t.getHours())}:${p2(t.getMinutes())}`; };
   const el = $('memberBody');
   el.hidden = false;
   el.innerHTML = `
@@ -1872,18 +1886,13 @@ function renderMember() {
     <div class="grid2">
       ${card('프로필', '본인 정보',
         kv('이름', esc(pf.name)) + kv('나이', pf.age ? esc(String(pf.age)) : null) +
-        kv('연락처(본인)', esc(pf.phone)) + kv('이메일', esc(ac.email)) +
-        kv('경력', esc(careerText(pf.first_worked_date))) +
-        kv('공정·급', trades.length ? trades.map((t) => esc(t.trade + (t.level ? '·' + t.level : ''))).join(', ') : null) +
-        kv('자격증', (pf.certificates || []).length ? esc(pf.certificates.join(', ')) : null) +
-        kv('가입', `${esc(ac.joined_at ? String(ac.joined_at).slice(0, 10) : '—')} · ${esc(JOIN_LABEL[ac.join_via] || ac.join_via || '—')}`))}
+        kv('연락처(본인)', esc(pf.phone)) + kv('경력', esc(careerText(pf.first_worked_date))) +
+        kv('가입', `${esc(ac.joined_at ? String(ac.joined_at).slice(0, 10) : '—')} · ${esc(JOIN_LABEL[ac.join_via] || ac.join_via || '—')}`), ' style="margin-top:0"')}
       ${card('조건', '일 받는 기준',
         kv('지역', (c.regions || []).length ? esc(c.regions.join(', ')) : null) +
         kv('희망 일당', pay) +
         kv('차량 / 숙박', `${c.has_vehicle ? '있음' : '없음'} / ${c.can_stay_overnight ? '가능' : '불가'}`) +
-        kv('당일 수락', c.accept_same_day ? '받음' : '안 받음') +
-        kv('매주 쉬는 날', (c.blocked_weekdays || []).length ? esc(c.blocked_weekdays.map((w) => WEEKDAY[w]).join('·')) : '없음') +
-        kv('앞으로 일정', num(d.jobs_upcoming) + '건'))}
+        kv('당일 수락', c.accept_same_day ? '받음' : '안 받음'), ' style="margin-top:0"')}
     </div>
 
     <div class="grid2">
@@ -1891,42 +1900,34 @@ function renderMember() {
         (d.income || []).length
           ? d.income.map((r) => kv(monthLabel(r.month), esc(`일 ${num(r.worked_days)} · ${won(r.income)} · 미수 ${r.unpaid ? won(r.unpaid) : '0'}`))).join('')
           : '<p class="muted" style="font-size:12.5px">적은 소득이 없습니다</p>')}
-      ${card('기기 · 유입', (d.devices || []).length > 1 ? `최근 설치 · 설치 ${d.devices.length}개` : '최근 설치',
+      ${card('기기 · 유입', '최근 설치',
         dev
-          ? kv('앱 / OS', esc(`${dev.app_version || '—'} · ${dev.os_version || '—'}`)) +
-            kv('기기', esc(d.device_model || '—')) +
+          ? kv('앱 / OS', esc(`${dev.app_version || '—'} · ${(dev.os_version || '—').replace(/\s*\(API.*\)$/, '')}`)) +
             kv('권한', dev.permissions ? Object.keys(PERM).filter((k) => k in dev.permissions).map((k) => `${PERM[k]}${dev.permissions[k] ? '✓' : '✕'}`).join(' ') : null) +
             kv('적용 판', `${num(dev.applied_revision)} ${dev.applied_revision >= d.revision ? '(최신)' : '<span class="down">(최신 아님)</span>'}`) +
-            kv('설치 경로', esc((SOURCE_NAME[dev.install_source] || dev.install_source || '미계측') + (dev.campaign ? ' · ref=' + dev.campaign : ''))) +
-            kv('최근 실행', when(d.last_seen_at))
+            kv('설치 경로', esc((SOURCE_NAME[dev.install_source] || dev.install_source || '미계측') + (dev.campaign ? ' · ref=' + dev.campaign : '')))
           : '<p class="muted" style="font-size:12.5px">기기 보고가 없습니다</p>')}
     </div>
 
-    ${card('문자 양식 (내 양식)', '본인이 쓰는 양식 — 발송 «본문»과는 다름 · 안 고친 양식은 기본 양식이라 여기 없다',
+    ${card('문자 양식 (내 양식)', '본인이 쓰는 양식 — 발송 «본문»과는 다름',
       (d.formats || []).length
         ? d.formats.map((f) => `<div class="fmt">[${esc(KIND_LABEL[f.kind] || f.kind)}${f.kind === 'cancel' ? ' ' + (f.ordinal + 1) : ''}] ${esc(f.body)}</div>`).join('')
-        : '<p class="muted" style="font-size:12.5px">올라온 양식이 없습니다 — 전부 기본 양식을 쓰고 있습니다.</p>', ' id="mdFormats"')}
+        : '<p class="muted" style="font-size:12.5px">고쳐 쓴 양식이 없습니다 — 기본 양식을 쓰고 있습니다.</p>', ' id="mdFormats"')}
 
-    ${card('발송 이력', `최근 ${num((d.sends || []).length)}건 · 구인자 번호 마스킹 · 본문은 눌러서 건별 열람(기록됨 · 90일 내)`,
-      '<div class="scroll"><table id="mdSends"></table></div>')}
-
-    ${(d.restrictions || []).length ? card('제재 이력', '', '<div class="scroll"><table id="mdRestr"></table></div>') : ''}`;
+    ${card('발송 이력', `최근 ${num((d.sends || []).length)}건 · 구인자 번호 마스킹 · 본문은 눌러서 건별 열람(기록됨·90일 내)`,
+      '<div class="scroll"><table id="mdSends"></table></div>')}`;
 
   table($('mdSends'), [
-    { h: '일시', f: (r) => when(r.sent_at) },
+    { h: '일시', f: (r) => mmdd(r.sent_at) },
     { h: '종류', f: (r) => esc(KIND_LABEL[r.msg_kind] || r.msg_kind) },
     { h: '방식', f: (r) => (r.is_auto ? '자동' : r.send_path === 'diag' ? '시험' : '수동') },
     { h: '구인자', cls: 'mask', f: (r) => '····' + esc(r.target_last4 || '') },
-    { h: '본문', cls: 'prev', tip: '앞 20자 미리보기 · 누르면 전체 본문(번호·계좌 마스킹 · 열람 기록됨)', f: (r) => (r.has_body
-        ? `<button type="button" data-body="${r.id}" title="누르면 전체 본문 — 열람이 기록됩니다">${esc(r.preview || '')}${r.char_count > 20 ? '…' : ''}</button>`
+    { h: '본문', cls: 'prev', tip: '앞 20자 미리보기 · 클릭하면 전체 본문(번호 마스킹·열람 기록됨).', f: (r) => (r.has_body
+        ? `<button type="button" data-body="${r.id}" title="클릭 — 전체 본문(기록됨)">${esc(r.preview || '')}${r.char_count > 20 ? '…' : ''}</button>`
         : '<span class="muted">보유 기간 지남</span>') },
-    { h: '결과', f: (r) => { const s2 = STATE_LABEL[r.state] || [r.state || '—', '']; return `<span class="badge ${s2[1] || 'none'}">${esc(s2[0])}</span>`; } },
+    { h: '결과', f: (r) => (r.state === 'sent' ? '<span class="badge real">전송</span>'
+        : `<span class="badge none">${esc((STATE_LABEL[r.state] || [r.state || '—'])[0])}</span>`) },
   ], d.sends);
-  if ($('mdRestr')) table($('mdRestr'), [
-    { h: '범위', f: (r) => esc(SCOPE_LABEL[r.scope] || r.scope) }, { h: '사유', k: 'reason_code' },
-    { h: '시작', f: (r) => when(r.starts_at) }, { h: '끝', f: (r) => (r.permanent ? '무기한' : when(r.ends_at)) },
-    { h: '해제', f: (r) => when(r.lifted_at) },
-  ], d.restrictions);
 }
 
 /** 발송 현황 · 운영 조치 */
@@ -1941,10 +1942,10 @@ function sendCard(s, limit, shadow) {
       ${shadow == null ? '' : shadow ? '<span class="badge practice">연습 모드</span>' : '<span class="badge real">실제 발송</span>'}
     </div>
     <div class="statgrid">
-      ${stt('오늘 발송', num(today), `지원 ${num(s.today_apply)}통`)}
+      ${stt('오늘 발송', num(today))}
       ${stt('잔여', num(left), null, ' style="color:var(--go)"')}
-      ${stt('하루 한도', num(limit), ov ? `오늘만 조정 · ${ov.applied ? '폰 적용 확인' : '폰이 아직 못 받음'}` : '기본값')}
-      ${stt('7일 발송', num(s.d7), `누적 ${num(s.total)}통`)}
+      ${stt('하루 한도', num(limit), ov ? `오늘만 조정 · ${ov.applied ? '폰 적용 확인' : '폰이 아직 못 받음'}` : null)}
+      ${stt('7일 발송', num(s.d7))}
     </div>
     <div class="meter${today >= limit ? ' full' : ''}" role="img" aria-label="오늘 ${today} / 한도 ${limit}"><div class="fill" style="width:${w.toFixed(1)}%"></div></div>
     <div class="muted" style="font-size:11.5px;margin-top:6px">오늘 ${num(today)} / ${num(limit)}통 사용 · ${limit > 0 ? Math.round(w) : 100}%</div>
