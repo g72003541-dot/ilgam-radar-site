@@ -338,6 +338,7 @@
   .v2 .actbtn { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--line); background: var(--card); border-radius: 10px; padding: 9px 14px; font-size: 13px; font-weight: 700; color: var(--ink); cursor: pointer; min-height: 0; }
   .v2 .actbtn svg { width: 15px; height: 15px; margin: 0; }
   .v2 .actbtn:hover { background: var(--fill); filter: none; }
+  .v2 .actbtn:disabled { opacity: .5; cursor: default; }
   .v2 .actbtn.danger { border-color: #e7c9c7; color: var(--flag); }
   .v2 .actbtn.danger:hover { background: var(--flagSoft); }
   .v2 td.prev { max-width: 280px; }
@@ -1835,6 +1836,8 @@ function memberEnter(who) {
   const okId = /^[0-9a-f]{8}$/i.test(who);
   $('mdOpen').disabled = !okId;
   $('mdErr').textContent = okId ? '' : '주소에 회원 ID 앞 8자가 없습니다 — 회원 관리에서 줄을 눌러 여세요';
+  // 열람 전에도 화면 틀(시안 그대로)은 보인다 — 값은 «—». 사유를 적고 [열람]을 누르면 채운다
+  if (okId) renderMember({});
 }
 
 $('mdOpen').onclick = async () => {
@@ -1866,9 +1869,10 @@ const kv = (k, v) => `<div class="kv"><span class="k">${esc(k)}</span><span clas
 const card = (title, sub, body, extra = '') => `<div class="card"${extra}><h2>${esc(title)}</h2>${sub ? `<div class="sub">${esc(sub)}</div>` : ''}${body}</div>`;
 const monthLabel = (ym) => { const [y, m] = String(ym).split('-'); return y == new Date().getFullYear() ? Number(m) + '월' : ym; };
 
-function renderMember() {
+function renderMember(d = MD.data) {
   // 항목·순서는 시안(console_proto.html#member) 그대로 — 발송 현황 · 프로필/조건 · 소득/기기·유입 · 문자 양식 · 발송 이력
-  const d = MD.data, pf = d.profile || {}, ac = d.account || {}, c = d.condition || {}, s = d.sending || {};
+  // d 가 빈 객체면 열람 전 «틀»이다 — 값은 전부 «—», 운영 조치 버튼은 잠근다
+  const pf = d.profile || {}, ac = d.account || {}, c = d.condition || {}, s = d.sending || {};
   const limit = s.override ? s.override.daily_limit : s.default_limit;
   const shadow = d.setting ? d.setting.shadow_mode : null;
   const dev = (d.devices || [])[0];
@@ -1887,12 +1891,12 @@ function renderMember() {
       ${card('프로필', '본인 정보',
         kv('이름', esc(pf.name)) + kv('나이', pf.age ? esc(String(pf.age)) : null) +
         kv('연락처(본인)', esc(pf.phone)) + kv('경력', esc(careerText(pf.first_worked_date))) +
-        kv('가입', `${esc(ac.joined_at ? String(ac.joined_at).slice(0, 10) : '—')} · ${esc(JOIN_LABEL[ac.join_via] || ac.join_via || '—')}`), ' style="margin-top:0"')}
+        kv('가입', ac.joined_at ? `${esc(String(ac.joined_at).slice(0, 10))} · ${esc(JOIN_LABEL[ac.join_via] || ac.join_via || '—')}` : null), ' style="margin-top:0"')}
       ${card('조건', '일 받는 기준',
         kv('지역', (c.regions || []).length ? esc(c.regions.join(', ')) : null) +
         kv('희망 일당', pay) +
-        kv('차량 / 숙박', `${c.has_vehicle ? '있음' : '없음'} / ${c.can_stay_overnight ? '가능' : '불가'}`) +
-        kv('당일 수락', c.accept_same_day ? '받음' : '안 받음'), ' style="margin-top:0"')}
+        kv('차량 / 숙박', d.condition ? `${c.has_vehicle ? '있음' : '없음'} / ${c.can_stay_overnight ? '가능' : '불가'}` : null) +
+        kv('당일 수락', d.condition ? (c.accept_same_day ? '받음' : '안 받음') : null), ' style="margin-top:0"')}
     </div>
 
     <div class="grid2">
@@ -1932,6 +1936,20 @@ function renderMember() {
 
 /** 발송 현황 · 운영 조치 */
 function sendCard(s, limit, shadow) {
+  if (s.today == null) {   // 열람 전 틀
+    const blank = (label) => `<div class="stt"><div class="l">${esc(label)}</div><div class="v muted">—</div></div>`;
+    return `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><h2 style="margin:0">발송 현황</h2></div>
+      <div class="statgrid">${blank('오늘 발송')}${blank('잔여')}${blank('하루 한도')}${blank('7일 발송')}</div>
+      <div class="meter"><div class="fill" style="width:0"></div></div>
+      <div class="muted" style="font-size:11.5px;margin-top:6px">열람 사유를 적고 [열람]을 누르면 채워집니다</div>
+      <div class="divline"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+        <div><div style="font-size:13px;font-weight:800">운영 조치</div>
+          <div class="muted" style="font-size:11.5px;margin-top:3px">최고관리자 재인증 후 실행 · 감사 기록에 남습니다</div></div>
+        <div class="act"><button type="button" class="actbtn" disabled>${ICON_EDIT}잔여 발송 수 편집</button>
+          <button type="button" class="actbtn danger" disabled>${ICON_BLOCK}이용 제한</button></div>
+      </div>`;
+  }
   const today = s.today || 0;
   const left = Math.max(0, limit - today);
   const w = limit > 0 ? Math.min(100, today / limit * 100) : 100;
