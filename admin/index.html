@@ -324,7 +324,13 @@
   .v2 .kv:last-child { border-bottom: 0; }
   .v2 .kv .k { color: var(--mut); flex: none; } .v2 .kv .v { font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; min-width: 0; overflow-wrap: anywhere; }
   .v2 .fmt { background: var(--fill); border: 0; border-radius: 10px; padding: 10px 12px; font-size: 12.5px; line-height: 1.6; margin-top: 8px; white-space: pre-line; word-break: break-all; }
-  .v2 .statgrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+  .v2 .statgrid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+  .v2 .rule-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 16px; }
+  .v2 .rule-form label { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; font-weight: 700; color: var(--ink); }
+  .v2 .rule-form label .muted { font-weight: 400; font-size: 11.5px; }
+  .v2 .rule-form input, .v2 .gate input[type=number] { border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; font-size: 13px; background: var(--card); min-height: 0; }
+  .v2 .lock { font-size: 11px; font-weight: 700; color: var(--flag); margin-left: 4px; }
+  @media (max-width: 900px) { .v2 .rule-form { grid-template-columns: 1fr 1fr; } }
   .v2 .stt { background: var(--fill); border-radius: 12px; padding: 12px 14px; }
   .v2 .stt .l { font-size: 11.5px; color: var(--mut); font-weight: 600; }
   .v2 .stt .v { font-size: 23px; font-weight: 800; margin-top: 4px; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
@@ -487,6 +493,7 @@
         <a href="#templates" data-page="templates"><span class="nav-dot" aria-hidden="true"></span>기본 양식</a>
         <p class="nav-group">관리</p>
         <a href="#control" data-page="control"><span class="nav-dot" aria-hidden="true"></span>서비스 제어</a>
+        <a href="#rules" data-page="rules"><span class="nav-dot" aria-hidden="true"></span>발송 규칙</a>
         <a href="#audit" data-page="audit"><span class="nav-dot" aria-hidden="true"></span>감사 기록</a>
         <a href="#operators" data-page="operators"><span class="nav-dot" aria-hidden="true"></span>운영자 관리</a>
         <a href="#account" data-page="account"><span class="nav-dot" aria-hidden="true"></span>내 계정</a>
@@ -826,6 +833,37 @@
           <h2>발송 → 일감 근사</h2><div class="sub">발송 후 일정 기록이 생긴 비율(인과 아님, 참고용)</div>
           <div id="pfJob"></div>
           <p class="foot">그 달 실제 지원 문자를 보낸 회원 중, 첫 발송 뒤 그 달 안에 일정(취소 안 된 일)을 적은 회원. 앱 밖에서 구한 일도 적힌다.</p>
+        </div>
+      </section>
+
+      <!-- ★ 2026-09-28 · 발송 규칙 — 운영자가 전체 발송 규칙을 정한다(형님 결정). 앱은 다음에 열 때 받는다.
+           악성 회원이 많이 보내 놓고 거절 문자를 쏟으면 업계 구인구직 환경이 망가진다 — 만든 사람의 책무. -->
+      <section class="page v2" id="page-rules" hidden>
+        <div class="bare" id="cardRulesNow">
+          <div class="kpis" id="ruKpis"></div>
+          <p class="foot" id="ruApplied"></p>
+        </div>
+        <div class="card" id="cardRulesEdit" data-roles="owner">
+          <h2>규칙 바꾸기</h2><div class="sub">모든 회원의 앱에 적용 · 최고관리자·관리자 재인증 후 · 변경 사유는 감사 기록에 남습니다</div>
+          <div class="rule-form">
+            <label>하루 상한<span class="muted">0~100통</span><input id="ruDaily" type="number" min="0" max="100"></label>
+            <label>발송 간격 최소<span class="muted">5~600초</span><input id="ruMin" type="number" min="5" max="600"></label>
+            <label>발송 간격 최대<span class="muted">5~900초</span><input id="ruMax" type="number" min="5" max="900"></label>
+            <label>야간 차단 시작<span class="muted">이 시각부터</span><input id="ruNightStart" type="time"></label>
+            <label>야간 차단 끝<span class="muted">이 시각까지 · 시작=끝이면 없음</span><input id="ruNightEnd" type="time"></label>
+            <label>발송 후 유예 기본<span class="muted">3~60초 · 회원이 앱에서 바꿀 수 있다</span><input id="ruUndo" type="number" min="3" max="60"></label>
+          </div>
+          <div class="gate" style="margin-top:12px">
+            <input id="ruReason" placeholder="변경 사유 — 감사 기록에 남습니다(필수)">
+            <button class="btn pri" type="button" id="ruSave">저장</button>
+            <button class="btn" type="button" id="ruDefaults">기본값 채우기</button>
+          </div>
+          <div class="err" id="ruErr" role="alert"></div>
+          <p class="foot" id="ruDone"></p>
+        </div>
+        <div class="card" id="cardRulesHist">
+          <h2>바뀐 기록</h2><div class="sub">최근 20판 · 판이 오르면 앱이 다음에 열 때 받아 간다</div>
+          <div class="scroll"><table id="ruHist"></table></div>
         </div>
       </section>
 
@@ -1547,6 +1585,9 @@ const PAGES = {
   crashes: { title: '오류·크래시', desc: '영향받은 사람 수로 정렬한 크래시와 스택을 확인합니다.',
     roles: ['owner', 'support', 'analyst'],
     load: [['cardCrashes', drawCrashes]] },
+  rules: { title: '발송 규칙', desc: '하루 상한 · 발송 간격 · 야간 차단 · 발송 후 유예 — 모든 회원의 앱이 다음에 열 때 받습니다.',
+    roles: ['owner', 'support', 'analyst'], m4: true, v2: true,
+    load: [[['cardRulesNow', 'cardRulesHist'], () => drawRules()]] },
   control: { title: '서비스 제어', desc: '안내·발송 중지를 게시하고 기기에 적용됐는지 확인합니다.',
     roles: ['owner', 'support', 'analyst'], m4: true,
     load: [[['cardControl', 'cardRollout'], drawPolicy]] },
@@ -1938,14 +1979,15 @@ function sendCard(s, limit, shadow) {
   if (s.today == null) {   // 열람 전 틀
     const blank = (label) => `<div class="stt"><div class="l">${esc(label)}</div><div class="v muted">—</div></div>`;
     return `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><h2 style="margin:0">발송 현황</h2></div>
-      <div class="statgrid">${blank('오늘 발송')}${blank('잔여')}${blank('하루 한도')}${blank('7일 발송')}</div>
+      <div class="statgrid">${blank('오늘 발송')}${blank('잔여')}${blank('하루 한도')}${blank('7일 발송')}${blank('날짜당 대기')}</div>
       <div class="meter"><div class="fill" style="width:0"></div></div>
-      <div class="muted" style="font-size:11.5px;margin-top:6px">열람 사유를 적고 [열람]을 누르면 채워집니다</div>
+      <div class="muted" style="font-size:11.5px;margin-top:6px">불러오는 중…</div>
       <div class="divline"></div>
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
         <div><div style="font-size:13px;font-weight:800">운영 조치</div>
           <div class="muted" style="font-size:11.5px;margin-top:3px">최고관리자 재인증 후 실행 · 감사 기록에 남습니다</div></div>
         <div class="act"><button type="button" class="actbtn" disabled>${ICON_EDIT}잔여 발송 수 편집</button>
+          <button type="button" class="actbtn" disabled>${ICON_EDIT}날짜당 대기 편집</button>
           <button type="button" class="actbtn danger" disabled>${ICON_BLOCK}이용 제한</button></div>
       </div>`;
   }
@@ -1953,7 +1995,10 @@ function sendCard(s, limit, shadow) {
   const left = Math.max(0, limit - today);
   const w = limit > 0 ? Math.min(100, today / limit * 100) : 100;
   const ov = s.override;
-  const stt = (label, v, sub, style = '') => `<div class="stt"><div class="l">${esc(label)}</div><div class="v"${style}>${v}<small> 통</small></div>${sub ? `<div class="s">${sub}</div>` : ''}</div>`;
+  const stt = (label, v, sub, style = '', unit = '통') => `<div class="stt"><div class="l">${esc(label)}</div><div class="v"${style}>${v}<small> ${unit}</small></div>${sub ? `<div class="s">${sub}</div>` : ''}</div>`;
+  // ★ 09-28 — 날짜당 대기: 운영자 조정이 있으면 그 값(잠금 표시), 없으면 회원 설정
+  const ctl = (MD.data && MD.data.control) || null;
+  const cap = ctl && ctl.per_date_cap != null ? ctl.per_date_cap : (MD.data && MD.data.setting ? MD.data.setting.per_date_cap : null);
   return `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
       <h2 style="margin:0">발송 현황</h2>
       ${shadow == null ? '' : shadow ? '<span class="badge practice">연습 모드</span>' : '<span class="badge real">실제 발송</span>'}
@@ -1963,6 +2008,8 @@ function sendCard(s, limit, shadow) {
       ${stt('잔여', num(left), null, ' style="color:var(--go)"')}
       ${stt('하루 한도', num(limit), ov ? `오늘만 조정 · ${ov.applied ? '폰 적용 확인' : '폰이 아직 못 받음'}` : null)}
       ${stt('7일 발송', num(s.d7))}
+      ${stt('날짜당 대기', cap == null ? '—' : num(cap),
+            ctl ? `${ctl.per_date_cap_locked ? '<span class="lock">🔒 잠김</span> ' : ''}운영자 조정 · ${ctl.applied ? '폰 적용 확인' : '폰이 아직 못 받음'}` : '회원 설정', '', '건')}
     </div>
     <div class="meter${today >= limit ? ' full' : ''}" role="img" aria-label="오늘 ${today} / 한도 ${limit}"><div class="fill" style="width:${w.toFixed(1)}%"></div></div>
     <div class="muted" style="font-size:11.5px;margin-top:6px">오늘 ${num(today)} / ${num(limit)}통 사용 · ${limit > 0 ? Math.round(w) : 100}%</div>
@@ -1976,6 +2023,7 @@ function sendCard(s, limit, shadow) {
       </div>
       <div class="act">
         <button type="button" class="actbtn" id="mdLimitBtn">${ICON_EDIT}잔여 발송 수 편집</button>
+        <button type="button" class="actbtn" id="mdCapBtn">${ICON_EDIT}날짜당 대기 편집</button>
         ${canSee('restrictions') ? `<button type="button" class="actbtn danger" id="mdRestrictBtn">${ICON_BLOCK}이용 제한</button>` : ''}
       </div>
     </div>
@@ -1992,7 +2040,40 @@ function sendCard(s, limit, shadow) {
         <button class="btn" type="button" id="mdLimitCancel">취소</button>
       </div>
       <div class="err" id="mdLimitErr" role="alert"></div>
+    </div>
+    <div id="mdCapForm" hidden style="margin-top:14px">
+      <div class="gate">
+        <label for="mdCap">한 날짜에 동시에 기다릴 건수</label>
+        <input id="mdCap" type="number" min="1" max="10" value="${cap == null ? 10 : cap}" style="flex:0 0 110px;min-width:0">
+        <label style="font-weight:600;color:var(--ink)"><input type="checkbox" id="mdCapLock"${ctl && ctl.per_date_cap_locked ? ' checked' : ''} style="width:auto;min-height:0"> 회원이 못 바꾸게 잠금</label>
+      </div>
+      <div class="gate" style="margin-top:8px">
+        <input id="mdCapReason" placeholder="변경 사유 — 감사 기록에 남습니다(필수)">
+        <button class="btn pri" type="button" id="mdCapSave">저장</button>
+        ${ctl ? '<button class="btn" type="button" id="mdCapReset">조정 해제(회원 설정으로)</button>' : ''}
+        <button class="btn" type="button" id="mdCapCancel">취소</button>
+      </div>
+      <div class="err" id="mdCapErr" role="alert"></div>
     </div>`;
+}
+
+/* ★ 09-28 — 날짜당 대기 조정·잠금. 최고관리자·관리자 + 재인증 + 변경 사유(서버가 판정) */
+async function saveCap(value, locked) {
+  const reason = $('mdCapReason').value.trim();
+  if (!reason) { $('mdCapErr').textContent = '변경 사유를 적어 주세요 — 감사 기록에 남습니다'; return; }
+  if (value !== null && !(Number.isInteger(value) && value >= 1 && value <= 10)) {
+    $('mdCapErr').textContent = '날짜당 대기는 1~10건입니다'; return;
+  }
+  MD.capReq ||= crypto.randomUUID();
+  try {
+    await rpc('admin_set_member_control', { p_request_id: MD.capReq, p_user_prefix: MD.who, p_per_date_cap: value, p_locked: locked, p_reason: reason });
+    MD.capReq = null;
+    MD.data.control = value === null && !locked ? null : { per_date_cap: value, per_date_cap_locked: locked, applied: false };
+    const s = MD.data.sending;
+    $('mdSend').innerHTML = sendCard(s, s.override ? s.override.daily_limit : s.default_limit, MD.data.setting && MD.data.setting.shadow_mode);
+  } catch (e) {
+    $('mdCapErr').textContent = reauthHint(e);
+  }
 }
 
 async function saveLimit(value) {
@@ -2020,6 +2101,10 @@ $('memberBody').addEventListener('click', (e) => {
   if (t.id === 'mdLimitCancel') { $('mdLimitForm').hidden = true; MD.limitReq = null; }
   if (t.id === 'mdLimitSave') saveLimit(Number($('mdLimit').value));
   if (t.id === 'mdLimitReset') saveLimit(null);
+  if (t.id === 'mdCapBtn') { $('mdCapForm').hidden = false; $('mdCap').focus(); }
+  if (t.id === 'mdCapCancel') { $('mdCapForm').hidden = true; MD.capReq = null; }
+  if (t.id === 'mdCapSave') saveCap(Number($('mdCap').value), $('mdCapLock').checked);
+  if (t.id === 'mdCapReset') saveCap(null, false);
   if (t.id === 'mdRestrictBtn') { $('rsUser').value = MD.who; $('rsComposer').open = true; location.hash = 'restrictions'; }
 });
 
@@ -2048,6 +2133,63 @@ async function openBody(id) {
     showBodyToast(`<div class="hd">본문을 열지 못했습니다<button type="button" id="btClose">닫기</button></div><div class="body err">${esc(reauthHint(e))}</div>`);
   }
 }
+
+/* ── 발송 규칙 (2026-09-28) ─────────────────────────────────────────── */
+const RULES_MISSING = '발송 규칙 마이그레이션(20260928090000_send_rules_admin.sql)이 아직 적용되지 않았습니다';
+let RU = null, RU_REQ = null;
+async function drawRules() {
+  try { RU = await rpc('admin_send_rules'); }
+  catch (e) { if (missingFn(e)) throw new Error(RULES_MISSING); throw e; }
+  const c = RU.current || RU.defaults;
+  const sub = RU.current ? `판 ${num(RU.current.revision)} · ${when(RU.current.published_at)}` : '기본값 · 아직 바꾼 적 없음';
+  $('ruKpis').innerHTML =
+    kpiBox('하루 상한', `${num(c.daily_limit)}<span class="u">통</span>`, sub) +
+    kpiBox('발송 간격', `${num(c.interval_min_sec)}~${num(c.interval_max_sec)}<span class="u">초</span>`, '랜덤') +
+    kpiBox('야간 차단', c.night_start === c.night_end ? '없음' : `${esc(c.night_start)}<span class="u">~</span>${esc(c.night_end)}`, '내일 자리는 예외') +
+    kpiBox('발송 후 유예', `${num(c.undo_sec)}<span class="u">초</span>`, '기본 · 회원이 바꿀 수 있다');
+  $('ruApplied').textContent = RU.current
+    ? `최근 30일 기기 ${num(RU.installations_30d)}대 중 ${num(RU.applied)}대가 이 판을 받았습니다(앱을 열어야 받는다).`
+    : '';
+  if (!$('cardRulesEdit').hidden) {
+    $('ruDaily').value = c.daily_limit; $('ruMin').value = c.interval_min_sec; $('ruMax').value = c.interval_max_sec;
+    $('ruNightStart').value = c.night_start; $('ruNightEnd').value = c.night_end; $('ruUndo').value = c.undo_sec;
+  }
+  table($('ruHist'), [
+    { h: '판', k: 'revision', n: true }, { h: '바꾼 때', f: (r) => when(r.published_at) },
+    { h: '하루 상한', f: (r) => num(r.daily_limit) + '통' }, { h: '간격', f: (r) => esc(r.interval) + '초' },
+    { h: '야간', f: (r) => esc(r.night) }, { h: '유예', f: (r) => num(r.undo_sec) + '초' },
+    { h: '변경 사유', f: (r) => esc(r.reason) }, { h: '누가', k: 'by' },
+  ], RU.history);
+}
+$('ruDefaults').onclick = () => {
+  const d = (RU && RU.defaults) || { daily_limit: 40, interval_min_sec: 20, interval_max_sec: 40, night_start: '20:30', night_end: '08:00', undo_sec: 10 };
+  $('ruDaily').value = d.daily_limit; $('ruMin').value = d.interval_min_sec; $('ruMax').value = d.interval_max_sec;
+  $('ruNightStart').value = d.night_start; $('ruNightEnd').value = d.night_end; $('ruUndo').value = d.undo_sec;
+};
+$('ruSave').onclick = async () => {
+  const n = (id) => Number($(id).value);
+  const v = { daily: n('ruDaily'), min: n('ruMin'), max: n('ruMax'), undo: n('ruUndo'), ns: $('ruNightStart').value, ne: $('ruNightEnd').value };
+  const reason = $('ruReason').value.trim();
+  $('ruErr').textContent = ''; $('ruDone').textContent = '';
+  const bad = !Number.isInteger(v.daily) || v.daily < 0 || v.daily > 100 ? '하루 상한은 0~100통입니다'
+    : !Number.isInteger(v.min) || !Number.isInteger(v.max) || v.min < 5 || v.min > 600 || v.max < 5 || v.max > 900 || v.min > v.max ? '발송 간격은 최소 5~600초 · 최대 5~900초 · 최소 ≤ 최대입니다'
+    : !/^\d\d:\d\d$/.test(v.ns) || !/^\d\d:\d\d$/.test(v.ne) ? '야간 차단 시각을 넣어 주세요'
+    : !Number.isInteger(v.undo) || v.undo < 3 || v.undo > 60 ? '발송 후 유예는 3~60초입니다'
+    : !reason ? '변경 사유를 적어 주세요 — 감사 기록에 남습니다' : null;
+  if (bad) { $('ruErr').textContent = bad; return; }
+  RU_REQ ||= crypto.randomUUID();
+  $('ruSave').disabled = true;
+  try {
+    const r = await rpc('admin_set_send_rules', { p_request_id: RU_REQ, p_daily_limit: v.daily, p_interval_min_sec: v.min,
+      p_interval_max_sec: v.max, p_night_start: v.ns, p_night_end: v.ne, p_undo_sec: v.undo, p_reason: reason });
+    RU_REQ = null;
+    $('ruReason').value = '';
+    $('ruDone').textContent = `저장했습니다 — 판 ${r.revision}. 회원의 앱이 다음에 열 때 받습니다.`;
+    await guard(['cardRulesNow', 'cardRulesHist'], drawRules);
+  } catch (e) {
+    $('ruErr').textContent = reauthHint(e);
+  } finally { $('ruSave').disabled = false; }
+};
 
 /* ── 이용 분석 v2 (2026-09-26) — admin_growth 한 번 ─────────────────── */
 const secText = (s) => (s == null || Number.isNaN(s) ? '—' : s >= 60 ? `${Math.floor(s / 60)}분 ${s % 60}초` : `${s}초`);
