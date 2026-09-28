@@ -1889,6 +1889,7 @@ async function loadMember() {
     MD.data = d;
     $('cardMemberGate').hidden = true;
     renderMember();
+    loadActivity();
   } catch (e) {
     $('mdErr').textContent = '불러오지 못했습니다 — ' + reauthHint(e);
     $('cardMemberGate').hidden = false;
@@ -1959,7 +1960,21 @@ function renderMember(d = MD.data) {
         : '<p class="muted" style="font-size:12.5px">고쳐 쓴 양식이 없습니다 — 기본 양식을 쓰고 있습니다.</p>', ' id="mdFormats"')}
 
     ${card('발송 이력', `최근 ${num((d.sends || []).length)}건 · 구인자 번호 마스킹 · 본문은 눌러서 건별 열람(기록됨·90일 내)`,
-      '<div class="scroll"><table id="mdSends"></table></div>')}`;
+      '<div class="scroll"><table id="mdSends"></table></div>')}
+
+    ${d.who ? card('활동 로그', '화면·발송 단계·오류를 시간순으로 — 오류를 찾는 자리 · 번호·본문은 없다',
+      `<div class="tools">
+         <select id="acDays" aria-label="기간"><option value="1">최근 1일</option><option value="3" selected>최근 3일</option><option value="7">최근 7일</option></select>
+         <span class="chips" id="acFilter" style="margin:0">
+           <button type="button" class="fbtn" data-af="all" aria-pressed="true">전체</button>
+           <button type="button" class="fbtn" data-af="send" aria-pressed="false">발송</button>
+           <button type="button" class="fbtn" data-af="usage" aria-pressed="false">화면·동작</button>
+           <button type="button" class="fbtn" data-af="error" aria-pressed="false">오류</button>
+         </span>
+         <span class="muted" id="acCount" style="font-size:12.5px"></span>
+       </div>
+       <div id="acSummary"></div>
+       <div class="scroll" style="max-height:560px;overflow:auto"><table id="acRows"></table></div>`, ' id="mdActivity"') : ''}`;
 
   table($('mdSends'), [
     { h: '일시', f: (r) => mmdd(r.sent_at) },
@@ -2106,6 +2121,70 @@ $('memberBody').addEventListener('click', (e) => {
   if (t.id === 'mdCapSave') saveCap(Number($('mdCap').value), $('mdCapLock').checked);
   if (t.id === 'mdCapReset') saveCap(null, false);
   if (t.id === 'mdRestrictBtn') { $('rsUser').value = MD.who; $('rsComposer').open = true; location.hash = 'restrictions'; }
+});
+
+/* ── 활동 로그 (2026-09-28) — 한 회원의 이용 기록·발송 단계·크래시를 시간순으로 ─────────
+   서버 admin_member_activity. 낱말과 숫자뿐이라(ⓒ) 열람 기록을 남기지 않는다. */
+const AC_USAGE = { app_open: '앱 켬', screen: '화면', onboard_step: '온보딩 단계', onboard_done: '온보딩 끝',
+  permission: '권한', shadow_off: '실제 발송 켬', shadow_on: '연습 모드로', send_gate: '발송 관문' };
+const AC_STAGE = { queued: '대기열에 넣음', blocked: '막힘', canceled: '취소', attempt_created: '발송 시도',
+  os_returned: '폰이 문자를 넘김', os_threw: '기기에서 실패', sent_ok: '발송 성공', sent_fail: '발송 실패',
+  delivered_ok: '전달 확인', delivered_fail: '전달 실패' };
+const AC_REASON = { night: '야간 차단', daily_cap: '하루 한도', per_date_cap: '날짜당 대기 상한', per_phone_30d: '같은 번호 30일 상한',
+  dup_case: '이미 보낸 건', blacklist: '차단한 번호', needs_account: '로그인 필요', restricted: '이용 제한',
+  service_paused: '서비스 정지', shadow: '연습 모드', user_cancel: '사용자가 취소' };
+const AC_ERROR = { InvalidNumber: '휴대폰 번호가 아님(10자리 미만 — 1588·02 등)', SecurityException: '문자 권한 없음',
+  NoSmsManager: '문자 기능 없음(유심·기본 문자 설정)' };
+const acErr = (e) => (e ? `${esc(AC_ERROR[e] || e)}${AC_ERROR[e] ? ` <span class="muted">(${esc(e)})</span>` : ''}` : '');
+let AC = { rows: [], filter: 'all' };
+const acIsError = (r) => r.src === 'crash' || ['os_threw', 'sent_fail', 'delivered_fail'].includes(r.what);
+async function loadActivity() {
+  if (!$('acRows') || !MD.who) return;
+  $('acCount').textContent = '불러오는 중…';
+  try {
+    const a = await rpc('admin_member_activity', { p_user_prefix: MD.who, p_days: Number($('acDays').value) });
+    AC.rows = a.rows || [];
+    const errs = (a.send_errors || []).map((x) => `${acErr(x.error)} <b>${num(x.n)}</b>건`).join(' · ');
+    const blk = (a.blocked || []).map((x) => `${esc(AC_REASON[x.reason] || x.reason)} <b>${num(x.n)}</b>건`).join(' · ');
+    $('acSummary').innerHTML = (errs || blk)
+      ? `<div class="notice" style="margin:0 0 12px">${errs ? `기기에서 실패: ${errs}` : ''}${errs && blk ? '<br>' : ''}${blk ? `막힘: ${blk}` : ''}</div>` : '';
+    renderActivity();
+  } catch (e) {
+    $('acCount').textContent = '';
+    $('acRows').innerHTML = `<tbody><tr><td class="err">${esc(missingFn(e)
+      ? '활동 로그 마이그레이션(20260928150000_member_activity.sql)이 아직 적용되지 않았습니다' : '불러오지 못했습니다 — ' + e.message)}</td></tr></tbody>`;
+  }
+}
+function renderActivity() {
+  const f = AC.filter;
+  const rows = AC.rows.filter((r) => f === 'all' || (f === 'error' ? acIsError(r) : r.src === f));
+  $('acCount').textContent = `${num(rows.length)}줄${rows.length !== AC.rows.length ? ` / ${num(AC.rows.length)}` : ''}`;
+  const t = (iso) => { const d = new Date(iso), z = (n) => String(n).padStart(2, '0');
+    return `${z(d.getMonth() + 1)}-${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}:${z(d.getSeconds())}`; };
+  table($('acRows'), [
+    { h: '시각', f: (r) => t(r.at) },
+    { h: '종류', f: (r) => (r.src === 'crash' ? '<span class="badge real">크래시</span>'
+        : r.src === 'send' ? `<span class="badge ${acIsError(r) ? 'real' : 'email'}">발송</span>` : '<span class="badge none">앱</span>') },
+    { h: '무엇', f: (r) => {
+        if (r.src === 'usage') return esc(AC_USAGE[r.what] || r.what) + (r.detail ? ` · <b>${esc(r.what === 'screen' ? (SCREEN_NAME[r.detail] || r.detail) : r.detail)}</b>` : '');
+        if (r.src === 'crash') return `<b>${esc(String(r.what).split('.').pop())}</b>${r.fatal === false ? ' <span class="muted">(앱은 살아 있음)</span>' : ''}`;
+        return `<b>${esc(AC_STAGE[r.what] || r.what)}</b>${r.reason ? ` · ${esc(AC_REASON[r.reason] || r.reason)}` : ''}${r.error ? ` · ${acErr(r.error)}` : ''}${r.result_code != null && r.what !== 'os_returned' ? ` <span class="muted">코드 ${esc(r.result_code)}</span>` : ''}`;
+      } },
+    { h: '비고', f: (r) => esc([
+        r.src === 'send' ? [KIND_LABEL[r.kind] || r.kind, r.path === 'auto' ? '자동' : r.path, r.target_date ? r.target_date.slice(5) + ' 자리' : null,
+          r.parts > 1 ? `${r.parts}조각` : null, r.attempt ? '시도 ' + r.attempt : null, r.skew ? '기기 시각 이상' : null].filter(Boolean).join(' · ') : null,
+        r.src === 'usage' ? [r.session ? '세션 ' + r.session : null, r.app].filter(Boolean).join(' · ') : null,
+        r.src === 'crash' ? [(r.detail || '').trim().replace(/^at\s+/, '').replace('com.ilgam.radar.', ''), r.app].filter(Boolean).join(' · ') : null,
+      ].filter(Boolean).join('')) },
+  ], rows);
+}
+$('memberBody').addEventListener('change', (e) => { if (e.target.id === 'acDays') loadActivity(); });
+$('memberBody').addEventListener('click', (e) => {
+  const b = e.target.closest('#acFilter button[data-af]');
+  if (!b) return;
+  AC.filter = b.dataset.af;
+  $('acFilter').querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+  renderActivity();
 });
 
 /* 본문 한 건 — 화면 아래 알림판(시안). 대화상자를 안 쓴다 · 저절로 안 닫힌다(읽는 중에 사라지지 않게) */
