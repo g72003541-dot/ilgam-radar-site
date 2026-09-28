@@ -419,7 +419,7 @@
   <h1><span class="t-wide">일감레이더 · 운영자 콘솔</span><span class="t-narrow">일감레이더.admin</span></h1>
   <span class="muted" id="who"></span>
   <span class="role" id="roleBadge" hidden></span>
-  <button id="reauth" hidden title="민감한 작업(서비스 정지·제재·역할 변경)은 15분 안에 비밀번호를 다시 입력해야 합니다">재인증</button>
+  <button id="reauth" hidden title="서버가 재인증을 요구할 때만 보입니다(09-28 재인증 폐지 — SQL 적용 전 호환)">재인증</button>
   <span class="spacer"></span>
   <button id="reload">새로고침</button>
   <button id="out">로그아웃</button>
@@ -846,7 +846,7 @@
           <p class="foot" id="ruApplied"></p>
         </div>
         <div class="card" id="cardRulesEdit" data-roles="owner">
-          <h2>규칙 바꾸기</h2><div class="sub">모든 회원의 앱에 적용 · 최고관리자·관리자 재인증 후 · 변경 사유는 감사 기록에 남습니다</div>
+          <h2>규칙 바꾸기</h2><div class="sub">모든 회원의 앱에 적용 · 최고관리자·관리자 · 변경 사유는 감사 기록에 남습니다</div>
           <div class="rule-form">
             <label>하루 상한<span class="muted">0~100통</span><input id="ruDaily" type="number" min="0" max="100"></label>
             <label>발송 간격 최소<span class="muted">5~600초</span><input id="ruMin" type="number" min="5" max="600"></label>
@@ -1070,7 +1070,7 @@
           <p class="why">
             역할은 <b>최고관리자</b>(전부)와 <b>관리자</b>(운영자 관리만 빼고 전부) 둘이다. 세부 권한은 나중에 따로 나눈다.
             <b>콘솔에서 만든 계정</b>은 지우면 계정까지 지워지고, <b>앱에서 가입한 계정</b>은 운영자 권한만 빠진다(앱 기록은 그대로).
-            자기 자신은 내리거나 지울 수 없다. 만들기·역할 바꾸기·지우기는 15분 안에 [재인증]이 필요하다.
+            자기 자신은 내리거나 지울 수 없다. 만들기·역할 바꾸기·지우기는 이유를 적고, 감사 기록에 남는다.
           </p>
           </details>
           <div class="row" style="margin-bottom:12px;">
@@ -1153,6 +1153,8 @@ const $ = (id) => document.getElementById(id);
 /** 좁은 폭(≤820px) — 메뉴가 햄버거 서랍으로 들어간다 */
 const NARROW = matchMedia('(max-width: 820px)');
 const reauthWhere = () => (NARROW.matches ? '메뉴 하단 [재인증]' : '위의 [재인증]');
+/** 서버가 재인증을 요구한 적이 있나 — 재인증 폐지 SQL 이 적용되면 영영 false 로 남아 버튼이 안 보인다 */
+let NEED_REAUTH = false;
 const show = (id, on) => { $(id).hidden = !on; };
 
 /* ── 서버와 이야기하는 유일한 통로 ───────────────────────────────────────
@@ -1186,6 +1188,10 @@ async function api(path, body, auth = true, method = 'POST', bearer = null) {
     let msg = String((data && (data.message || data.msg || data.error_description)) || text || res.status);
     // 서버(ops_admin.sql)의 재인증 문구는 코드 로그인 시절 것이다 — SQL 은 두고 화면에서만 바꿔 읽는다
     msg = msg.replace('이메일 코드로 다시 들어오세요', reauthWhere() + '에서 비밀번호를 다시 입력하세요');
+    if (/재인증이 필요/.test(msg) && !NEED_REAUTH) {
+      NEED_REAUTH = true;
+      $('reauth').hidden = false; $('reauthM').hidden = false;
+    }
     const e = new Error(msg);
     e.status = res.status;
     e.code = data && (data.error_code || data.code || data.error) || null;
@@ -1512,13 +1518,16 @@ async function loadRole() {
   $('roleText').textContent = ROLE === 'legacy' ? '— (서버에 M4 적용 전)' :
     (ROLE_NAME[ROLE] || ROLE);
   $('roleBadge').hidden = !ME; $('roleBadge').textContent = $('roleText').textContent;
-  $('reauth').hidden = !ownerish();
-  $('reauthM').hidden = !ownerish();
+  // ★ 09-28 재인증 폐지(형님 결정 · 20260928200000_no_reauth.sql) — 버튼은 숨긴다.
+  //   서버가 아직 재인증을 요구하면(SQL 미적용) api() 가 그 오류를 받는 순간 다시 드러낸다(needReauth)
+  $('reauth').hidden = !(ownerish() && NEED_REAUTH);
+  $('reauthM').hidden = !(ownerish() && NEED_REAUTH);
   $('tempPwBanner').hidden = !(ME && ME.temp_password);
   drawFeedbackBadge();
   $('opsNote').textContent = ROLE === 'legacy'
     ? '운영 마이그레이션(20260924220000_ops_admin.sql)이 아직 적용되지 않았습니다'
-    : (ME && ME.recent_auth_ok ? '재인증 유효' : '민감한 작업 전 [재인증] 필요');
+    : !NEED_REAUTH ? ''
+    : (ME && ME.recent_auth_ok ? '재인증 유효' : '서버가 아직 재인증을 요구합니다 — [재인증] 후 다시 시도(20260928200000 SQL 적용 전)');
   document.querySelectorAll('[data-roles]').forEach((c) => {
     const roles = c.dataset.roles.split(',');
     c.hidden = ROLE === 'legacy' || ('ownerOnly' in c.dataset ? ROLE !== 'owner' : !(roles.includes(ROLE) || roles.includes(effRole())));
@@ -1998,7 +2007,7 @@ function sendCard(s, limit, shadow) {
       <div class="divline"></div>
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
         <div><div style="font-size:13px;font-weight:800">운영 조치</div>
-          <div class="muted" style="font-size:11.5px;margin-top:3px">최고관리자 재인증 후 실행 · 감사 기록에 남습니다</div></div>
+          <div class="muted" style="font-size:11.5px;margin-top:3px">최고관리자만 실행 · 감사 기록에 남습니다</div></div>
         <div class="act"><button type="button" class="actbtn" disabled>${ICON_EDIT}잔여 발송 수 편집</button>
           <button type="button" class="actbtn" disabled>${ICON_EDIT}날짜당 대기 편집</button>
           <button type="button" class="actbtn danger" disabled>${ICON_BLOCK}이용 제한</button></div>
@@ -2032,7 +2041,7 @@ function sendCard(s, limit, shadow) {
     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
       <div>
         <div style="font-size:13px;font-weight:800">운영 조치</div>
-        <div class="muted" style="font-size:11.5px;margin-top:3px">최고관리자 재인증 후 실행 · 감사 기록에 남습니다</div>
+        <div class="muted" style="font-size:11.5px;margin-top:3px">최고관리자만 실행 · 감사 기록에 남습니다</div>
       </div>
       <div class="act">
         <button type="button" class="actbtn" id="mdLimitBtn">${ICON_EDIT}잔여 발송 수 편집</button>
