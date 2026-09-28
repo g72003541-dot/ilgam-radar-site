@@ -2133,9 +2133,12 @@ const AC_STAGE = { queued: '대기열에 넣음', blocked: '막힘', canceled: '
 const AC_REASON = { night: '야간 차단', daily_cap: '하루 한도', per_date_cap: '날짜당 대기 상한', per_phone_30d: '같은 번호 30일 상한',
   dup_case: '이미 보낸 건', blacklist: '차단한 번호', needs_account: '로그인 필요', restricted: '이용 제한',
   service_paused: '서비스 정지', shadow: '연습 모드', user_cancel: '사용자가 취소' };
-const AC_ERROR = { InvalidNumber: '휴대폰 번호가 아님(10자리 미만 — 1588·02 등)', SecurityException: '문자 권한 없음',
+const AC_ERROR = { InvalidNumber: '휴대폰 번호가 아님(10자리 미만 — 1588·02 등)', SecurityException: '권한 거부(문자 권한 또는 폰이 요구한 다른 권한)',
   NoSmsManager: '문자 기능 없음(유심·기본 문자 설정)' };
-const acErr = (e) => (e ? `${esc(AC_ERROR[e] || e)}${AC_ERROR[e] ? ` <span class="muted">(${esc(e)})</span>` : ''}` : '');
+/* 09-28 — `SecurityException:READ_PHONE_STATE` 처럼 **폰이 요구한 권한 이름**이 붙어 온다(앱 0.4.1~) */
+const acErrLabel = (e) => { const [k, perm] = String(e).split(':');
+  return AC_ERROR[e] || (perm && k === 'SecurityException' ? `권한 거부 — 폰이 ${perm} 를 요구` : AC_ERROR[k]) || null; };
+const acErr = (e) => { if (!e) return ''; const l = acErrLabel(e); return l ? `${esc(l)} <span class="muted">(${esc(e)})</span>` : esc(e); };
 let AC = { rows: [], filter: 'all' };
 const acIsError = (r) => r.src === 'crash' || ['os_threw', 'sent_fail', 'delivered_fail'].includes(r.what);
 async function loadActivity() {
