@@ -269,6 +269,8 @@
   .v2 .scroll { overflow-x: auto; }
   .v2 table { width: 100%; border-collapse: collapse; font-size: 13px; }
   .v2 th, .v2 td { text-align: left; padding: 11px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; background: none; }
+  /* 09-28 — 회원 목록만 줄 간격을 조금 좁힌다(한 화면에 더 많이) */
+  .v2 #members th, .v2 #members td { padding: 8px 9px; }
   .v2 th { font-size: 11.5px; color: var(--mut); font-weight: 700; }
   .v2 td.n, .v2 th.n { text-align: right; font-variant-numeric: tabular-nums; }
   .v2 tbody tr.pick { cursor: pointer; }
@@ -572,7 +574,7 @@
           <div class="row" style="margin-top:8px;"><button id="monMore" hidden>더 보기</button></div>
         </div>
 
-        <div class="card" id="cardAnom" data-roles="owner,support">
+        <div class="card" id="cardAnom" data-roles="owner,support" style="grid-column: 1 / -1;">
           <h2>이상 징후 — 관측 신호</h2>
           <details class="help"><summary>확인 기준 및 운영 안내</summary>
           <p class="why">
@@ -919,7 +921,7 @@
           <h2>팝업 목록</h2>
           <details class="help"><summary>확인 기준 및 운영 안내</summary>
           <p class="why">
-            앱은 <b>켜질 때 한 번</b> 받아 가서, 대상·기간·버전이 맞는 것 중 <b>우선순위가 가장 높은 하나</b>를 띄운다.
+            앱은 <b>켜질 때 한 번</b> 받아 가서, 대상·기간·버전이 맞는 것을 <b>«순서» 칸의 차례대로</b> 넘겨 가며 보여준다 — ▲▼ 로 바꾼다.
             게스트(로그인 안 함)도 받는다 — 이미지는 <b>공개 주소</b>라 누구나 볼 수 있다. 개인정보·내부 자료를 넣지 않는다.
             자동 발송 10초 예고가 떠 있으면 앱이 팝업을 미룬다.
           </p>
@@ -961,7 +963,7 @@
                 <label for="popMin">앱 버전(versionCode)</label>
                 <input id="popMin" type="number" min="1" placeholder="최소" style="width:90px">
                 <input id="popMax" type="number" min="1" placeholder="최대" style="width:90px">
-                <label for="popPriority">우선순위</label><input id="popPriority" type="number" value="0" style="width:90px">
+                <label for="popPriority">우선순위(클수록 먼저 · 목록 ▲▼ 로도 바꿈)</label><input id="popPriority" type="number" value="0" style="width:90px">
               </div>
               <div class="row">
                 <label for="popDismiss">닫기</label>
@@ -1812,8 +1814,7 @@ const MEM_COLS = [
   { h: '모드', f: (r) => modeBadge(r.shadow_mode), tip: '발송 모드 — 연습(수집연습모드 · 실제로 안 나감) / 실제(진짜 문자)' },
   { h: '7일 발송', k: 'sends_7d', n: true, tip: '최근 7일간 서버에 올라온 발송 건수. 연습 모드는 문자를 보내지 않아 여기 안 잡힌다' },
   { h: '누적', k: 'sends_total', n: true, tip: '가입 후 누적 총 발송 건수(서버에 올라온 것)' },
-  { h: '', cls: 'acts', f: (r) => `<button class="lnk" data-mon="${esc(r.who)}">발송 기록</button>` +
-      (ownerish() ? `<button class="lnk" data-rs="${esc(r.who)}">제한 검토</button>` : '') },
+  // ⓘ 09-28 — 오른쪽 «발송 기록 · 제한 검토» 버튼을 뺐다(형님 지시). 행을 누르면 상세가 열리고, 상세에 발송 이력·운영 조치가 있다
 ];
 async function drawMembers() {
   MEMBERS = await rpc('admin_members', { p_limit: 500 });
@@ -1841,9 +1842,6 @@ $('memFilter').addEventListener('click', (e) => {
 /** 회원 상세를 새 탭으로 — 목록은 그대로 둔다 */
 const openMember = (who) => window.open(location.pathname + location.search + '#member=' + encodeURIComponent(who), '_blank', 'noopener');
 $('members').addEventListener('click', (e) => {
-  const d = e.target.dataset || {};
-  if (d.mon) { $('monUser').value = d.mon; LOADED.delete('monitor'); location.hash = 'monitor'; return; }
-  if (d.rs) { $('rsUser').value = d.rs; $('rsComposer').open = true; location.hash = 'restrictions'; return; }
   if (e.target.closest('button')) return;
   const tr = e.target.closest('tr[data-member]');
   if (tr) openMember(tr.dataset.member);
@@ -1960,7 +1958,7 @@ function renderMember(d = MD.data) {
         : '<p class="muted" style="font-size:12.5px">고쳐 쓴 양식이 없습니다 — 기본 양식을 쓰고 있습니다.</p>', ' id="mdFormats"')}
 
     ${card('발송 이력', `최근 ${num((d.sends || []).length)}건 · 구인자 번호 마스킹 · 본문은 눌러서 건별 열람(기록됨·90일 내)`,
-      '<div class="scroll"><table id="mdSends"></table></div>')}
+      '<div class="scroll" style="max-height:560px;overflow:auto"><table id="mdSends"></table></div>')}
 
     ${d.who ? card('활동 로그', '화면·발송 단계·오류를 시간순으로 — 오류를 찾는 자리 · 번호·본문은 없다',
       `<div class="tools">
@@ -2810,7 +2808,14 @@ async function drawPopups() {
     { h: '대상', f: (r) => esc(POP_AUD[r.audience] || r.audience) },
     { h: '기간', f: (r) => esc(popPeriod(r)) },
     { h: '버전', f: (r) => (r.min_version_code || r.max_version_code) ? esc(`${r.min_version_code ?? '…'}–${r.max_version_code ?? '…'}`) : '전체' },
-    { h: '우선', k: 'priority', n: true },
+    { h: '순서', f: (r) => {
+        const i = popOrder().findIndex((x) => x.id === r.id);
+        if (i < 0) return '<span class="muted">—</span>';
+        const n = popOrder().length;
+        return `<span style="display:flex;gap:4px;align-items:center"><b style="min-width:18px">${i + 1}</b>
+          <button class="lnk" data-popup="${r.id}" ${i === 0 ? 'disabled' : ''} aria-label="앞으로">▲</button>
+          <button class="lnk" data-popdown="${r.id}" ${i === n - 1 ? 'disabled' : ''} aria-label="뒤로">▼</button></span>`;
+      } },
     { h: '닫기', f: (r) => esc(POP_DISMISS[r.dismiss_type] || r.dismiss_type) },
     { h: '상태', f: (r) => { const l = POP_STATE[r.state] || [r.state, '']; return `<span class="pill ${l[1]}">${esc(l[0])}</span>`; } },
     { h: '', f: (r) => `<span style="display:flex;gap:6px;flex-wrap:wrap">
@@ -2819,6 +2824,8 @@ async function drawPopups() {
         <button class="danger" data-popdel="${r.id}">삭제</button></span>` },
   ], POP_ROWS);
   $('popList').querySelectorAll('[data-popedit]').forEach((b) => b.onclick = () => popOpen(POP_ROWS.find((r) => r.id === Number(b.dataset.popedit))));
+  $('popList').querySelectorAll('[data-popup],[data-popdown]').forEach((b) => b.onclick = () =>
+    popMove(Number(b.dataset.popup || b.dataset.popdown), b.dataset.popup ? -1 : 1, b));
   $('popList').querySelectorAll('[data-poptoggle]').forEach((b) => b.onclick = async () => {
     const r = POP_ROWS.find((x) => x.id === Number(b.dataset.poptoggle));
     const key = 't' + r.id + ':' + !r.active;
@@ -2849,6 +2856,34 @@ async function drawPopups() {
       } catch (e) { $('popMsg').textContent = e.message; }
     };
   });
+}
+
+/*
+ * ★ 팝업 나오는 순서 (09-28 형님 지시) — 켜져 있고 끝나지 않은 팝업(노출 중·예약)만 줄 세운다.
+ * 앱은 priority 큰 것부터 넘겨 보여준다(get_active_popups · 같으면 최근 것). 여기서 ▲▼ 로 자리를 바꾸면
+ * 그 줄 전체에 (개수 − 자리) × 10 을 다시 매겨 저장한다 — 바뀐 줄만 저장하고, 감사 기록에 «노출 순서 변경»이 남는다.
+ */
+const popOrder = () => (POP_ROWS || []).filter((r) => r.state === 'live' || r.state === 'scheduled');
+async function popMove(id, dir, btn) {
+  const list = popOrder().slice();
+  const i = list.findIndex((r) => r.id === id), j = i + dir;
+  if (i < 0 || j < 0 || j >= list.length) return;
+  [list[i], list[j]] = [list[j], list[i]];
+  $('popList').querySelectorAll('[data-popup],[data-popdown]').forEach((x) => (x.disabled = true));
+  try {
+    for (let k = 0; k < list.length; k++) {
+      const r = list[k], want = (list.length - k) * 10;
+      if (r.priority === want) continue;
+      await pop(() => rpc('admin_popup_upsert', {
+        p_request_id: crypto.randomUUID(), p_id: r.id, p_title: r.title, p_image_path: r.image_path, p_link_url: r.link_url,
+        p_type: r.type, p_audience: r.audience, p_min_version_code: r.min_version_code, p_max_version_code: r.max_version_code,
+        p_starts_at: r.starts_at, p_ends_at: r.ends_at, p_priority: want, p_dismiss_type: r.dismiss_type, p_active: r.active,
+        p_reason: '노출 순서 변경',
+      }));
+    }
+    $('popMsg').textContent = '순서를 바꿨습니다 — 앱은 다음에 켤 때 이 순서로 보여줍니다.';
+  } catch (e) { $('popMsg').textContent = e.message; }
+  await Promise.all([guard('cardPopups', drawPopups), guard('cardAudit', drawAudit)]);
 }
 
 /** Storage — 로그인 토큰으로. 올리기는 파일 그대로(POST), 지우기는 경로 목록(DELETE) */
