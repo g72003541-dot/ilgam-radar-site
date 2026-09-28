@@ -2134,7 +2134,8 @@ const AC_REASON = { night: '야간 차단', daily_cap: '하루 한도', per_date
   dup_case: '이미 보낸 건', blacklist: '차단한 번호', needs_account: '로그인 필요', restricted: '이용 제한',
   service_paused: '서비스 정지', shadow: '연습 모드', user_cancel: '사용자가 취소' };
 const AC_ERROR = { InvalidNumber: '휴대폰 번호가 아님(10자리 미만 — 1588·02 등)', SecurityException: '권한 거부(문자 권한 또는 폰이 요구한 다른 권한)',
-  NoSmsManager: '문자 기능 없음(유심·기본 문자 설정)' };
+  NoSmsManager: '문자 기능 없음(유심·기본 문자 설정)',
+  NoDefaultSmsSim: '문자 SIM 미설정(듀얼심 — 문자 보낼 SIM 없음)', 'SecurityException:READ_PHONE_STATE': '문자 SIM 미설정(듀얼심 — 앱 0.4.1 이전 기록)' };
 /* 09-28 — `SecurityException:READ_PHONE_STATE` 처럼 **폰이 요구한 권한 이름**이 붙어 온다(앱 0.4.1~) */
 const acErrLabel = (e) => { const [k, perm] = String(e).split(':');
   return AC_ERROR[e] || (perm && k === 'SecurityException' ? `권한 거부 — 폰이 ${perm} 를 요구` : AC_ERROR[k]) || null; };
