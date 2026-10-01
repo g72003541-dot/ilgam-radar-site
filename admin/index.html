@@ -2150,7 +2150,12 @@ const acErr = (e) => { if (!e) return ''; const l = acErrLabel(e); return l ? `$
 /* ★ 10-01 — 발송 3단(앱 0.4.2~). 긴 문자를 안드로이드가 못 나누는 폰(갤럭시 폴드8)은 2·3단으로 보낸다 */
 const AC_TIER = { 1: '1단(안드로이드 나누기)', 2: '2단(앱 나누기 · 받는 쪽 한 통)', 3: '3단(따로 보내기 · 받는 쪽 여러 통)' };
 const AC_SEND_STAGE = { route: 'SIM 고르기', divide: '나누기', divide_fallback: '앱 나누기', send_text: '단문',
-  send_multipart: '긴 문자 한 번에', send_split: '조각 따로' };
+  send_multipart: '긴 문자 한 번에', send_split: '조각 따로',
+  // ★ 10-01 — 사진 문자 시험(2-A 스파이크). 결과 코드는 MMS_ERROR_* 이름으로
+  mms_encode: '사진 문자 봉투', mms_send: '사진 문자 넘김', mms_result: '사진 문자 결과' };
+const AC_MMS_CODE = { '-1': 'OK', 1: 'UNSPECIFIED', 2: 'INVALID_APN', 3: 'UNABLE_CONNECT_MMS', 4: 'HTTP_FAILURE', 5: 'IO_ERROR',
+  6: 'RETRY', 7: 'CONFIGURATION_ERROR', 8: 'NO_DATA_NETWORK', 9: 'INVALID_SUBSCRIPTION_ID', 10: 'INACTIVE_SUBSCRIPTION',
+  11: 'DATA_DISABLED', 12: 'MMS_DISABLED_BY_CARRIER' };
 let AC = { rows: [], filter: 'all' };
 const acIsError = (r) => r.src === 'crash' || ['os_threw', 'sent_fail', 'delivered_fail'].includes(r.what);
 async function loadActivity() {
@@ -2187,7 +2192,7 @@ function renderActivity() {
     { h: '무엇', f: (r) => {
         if (r.src === 'usage') return esc(AC_USAGE[r.what] || r.what) + (r.detail ? ` · <b>${esc(r.what === 'screen' ? (SCREEN_NAME[r.detail] || r.detail) : r.detail)}</b>` : '');
         if (r.src === 'crash') return `<b>${esc(String(r.what).split('.').pop())}</b>${r.fatal === false ? ' <span class="muted">(앱은 살아 있음)</span>' : ''}`;
-        return `<b>${esc(AC_STAGE[r.what] || r.what)}</b>${r.reason ? ` · ${esc(AC_REASON[r.reason] || r.reason)}` : ''}${r.error ? ` · ${acErr(r.error)}` : ''}${r.tier ? ` · <b>${esc(AC_TIER[r.tier] || r.tier + '단')}</b>` : ''}${r.result_code != null && r.what !== 'os_returned' ? ` <span class="muted">코드 ${esc(r.result_code)}</span>` : ''}`;
+        return `<b>${esc(AC_STAGE[r.what] || r.what)}</b>${r.reason ? ` · ${esc(AC_REASON[r.reason] || r.reason)}` : ''}${r.error ? ` · ${acErr(r.error)}` : ''}${r.tier ? ` · <b>${esc(AC_TIER[r.tier] || r.tier + '단')}</b>` : ''}${r.result_code != null && r.what !== 'os_returned' ? ` <span class="muted">코드 ${esc(r.result_code)}${r.send_stage === 'mms_result' && AC_MMS_CODE[r.result_code] ? ' ' + esc(AC_MMS_CODE[r.result_code]) : ''}</span>` : ''}`;
       } },
     { h: '비고', f: (r) => esc([
         r.src === 'send' ? [KIND_LABEL[r.kind] || r.kind, r.path === 'auto' ? '자동' : r.path, r.target_date ? r.target_date.slice(5) + ' 자리' : null,
