@@ -2140,13 +2140,17 @@ const AC_STAGE = { queued: '대기열에 넣음', blocked: '막힘', canceled: '
 const AC_REASON = { night: '야간 차단', daily_cap: '하루 한도', per_date_cap: '날짜당 대기 상한', per_phone_30d: '같은 번호 30일 상한',
   dup_case: '이미 보낸 건', blacklist: '차단한 번호', needs_account: '로그인 필요', restricted: '이용 제한',
   service_paused: '서비스 정지', shadow: '연습 모드', user_cancel: '사용자가 취소' };
-const AC_ERROR = { InvalidNumber: '휴대폰 번호가 아님(10자리 미만 — 1588·02 등)', SecurityException: '권한 거부(문자 권한 또는 폰이 요구한 다른 권한)',
+const AC_ERROR = { InvalidNumber: '휴대폰 번호가 아님(10자리 미만 — 1588·02 등)', SecurityException: '기기에서 거부(권한 이름 없음 — 앱 0.4.2부터 긴 문자는 2·3단으로 다시 보냄)',
   NoSmsManager: '문자 기능 없음(유심·기본 문자 설정)',
   NoDefaultSmsSim: '문자 SIM 미설정(듀얼심 — 문자 보낼 SIM 없음)', 'SecurityException:READ_PHONE_STATE': '문자 SIM 미설정(듀얼심 — 앱 0.4.1 이전 기록)' };
 /* 09-28 — `SecurityException:READ_PHONE_STATE` 처럼 **폰이 요구한 권한 이름**이 붙어 온다(앱 0.4.1~) */
 const acErrLabel = (e) => { const [k, perm] = String(e).split(':');
   return AC_ERROR[e] || (perm && k === 'SecurityException' ? `권한 거부 — 폰이 ${perm} 를 요구` : AC_ERROR[k]) || null; };
 const acErr = (e) => { if (!e) return ''; const l = acErrLabel(e); return l ? `${esc(l)} <span class="muted">(${esc(e)})</span>` : esc(e); };
+/* ★ 10-01 — 발송 3단(앱 0.4.2~). 긴 문자를 안드로이드가 못 나누는 폰(갤럭시 폴드8)은 2·3단으로 보낸다 */
+const AC_TIER = { 1: '1단(안드로이드 나누기)', 2: '2단(앱 나누기 · 받는 쪽 한 통)', 3: '3단(따로 보내기 · 받는 쪽 여러 통)' };
+const AC_SEND_STAGE = { route: 'SIM 고르기', divide: '나누기', divide_fallback: '앱 나누기', send_text: '단문',
+  send_multipart: '긴 문자 한 번에', send_split: '조각 따로' };
 let AC = { rows: [], filter: 'all' };
 const acIsError = (r) => r.src === 'crash' || ['os_threw', 'sent_fail', 'delivered_fail'].includes(r.what);
 async function loadActivity() {
@@ -2157,8 +2161,12 @@ async function loadActivity() {
     AC.rows = a.rows || [];
     const errs = (a.send_errors || []).map((x) => `${acErr(x.error)} <b>${num(x.n)}</b>건`).join(' · ');
     const blk = (a.blocked || []).map((x) => `${esc(AC_REASON[x.reason] || x.reason)} <b>${num(x.n)}</b>건`).join(' · ');
-    $('acSummary').innerHTML = (errs || blk)
-      ? `<div class="notice" style="margin:0 0 12px">${errs ? `기기에서 실패: ${errs}` : ''}${errs && blk ? '<br>' : ''}${blk ? `막힘: ${blk}` : ''}</div>` : '';
+    // ★ 10-01 — 몇 단으로 보냈나(폰이 문자를 넘긴 통 기준). 단이 비어 있는 건 0.4.1 이하 기록
+    const paths = (a.paths || []).filter((x) => x.tier != null);
+    const top = paths.reduce((m, x) => (x.tier > m ? x.tier : m), 0);
+    const pth = paths.length ? `${top > 1 ? `<b>이 폰은 ${esc(AC_TIER[top])}으로 보냄</b> — ` : ''}${paths.map((x) => `${esc(x.tier)}단 <b>${num(x.n)}</b>건`).join(' · ')}` : '';
+    const lines = [errs ? `기기에서 실패: ${errs}` : '', blk ? `막힘: ${blk}` : '', pth ? `발송 경로: ${pth}` : ''].filter(Boolean);
+    $('acSummary').innerHTML = lines.length ? `<div class="notice" style="margin:0 0 12px">${lines.join('<br>')}</div>` : '';
     renderActivity();
   } catch (e) {
     $('acCount').textContent = '';
@@ -2179,11 +2187,14 @@ function renderActivity() {
     { h: '무엇', f: (r) => {
         if (r.src === 'usage') return esc(AC_USAGE[r.what] || r.what) + (r.detail ? ` · <b>${esc(r.what === 'screen' ? (SCREEN_NAME[r.detail] || r.detail) : r.detail)}</b>` : '');
         if (r.src === 'crash') return `<b>${esc(String(r.what).split('.').pop())}</b>${r.fatal === false ? ' <span class="muted">(앱은 살아 있음)</span>' : ''}`;
-        return `<b>${esc(AC_STAGE[r.what] || r.what)}</b>${r.reason ? ` · ${esc(AC_REASON[r.reason] || r.reason)}` : ''}${r.error ? ` · ${acErr(r.error)}` : ''}${r.result_code != null && r.what !== 'os_returned' ? ` <span class="muted">코드 ${esc(r.result_code)}</span>` : ''}`;
+        return `<b>${esc(AC_STAGE[r.what] || r.what)}</b>${r.reason ? ` · ${esc(AC_REASON[r.reason] || r.reason)}` : ''}${r.error ? ` · ${acErr(r.error)}` : ''}${r.tier ? ` · <b>${esc(AC_TIER[r.tier] || r.tier + '단')}</b>` : ''}${r.result_code != null && r.what !== 'os_returned' ? ` <span class="muted">코드 ${esc(r.result_code)}</span>` : ''}`;
       } },
     { h: '비고', f: (r) => esc([
         r.src === 'send' ? [KIND_LABEL[r.kind] || r.kind, r.path === 'auto' ? '자동' : r.path, r.target_date ? r.target_date.slice(5) + ' 자리' : null,
-          r.parts > 1 ? `${r.parts}조각` : null, r.attempt ? '시도 ' + r.attempt : null, r.skew ? '기기 시각 이상' : null].filter(Boolean).join(' · ') : null,
+          r.parts > 1 ? `${r.parts}조각` : null, r.send_stage ? '단계 ' + (AC_SEND_STAGE[r.send_stage] || r.send_stage) : null,
+          r.attempt ? '시도 ' + r.attempt : null, r.skew ? '기기 시각 이상' : null,
+          // 숫자를 가린 예외 메시지 + 스택 위 6칸 — 2·3단으로 나갔으면 «왜 내려왔나»
+          r.error_detail ? '세부 ' + r.error_detail : null].filter(Boolean).join(' · ') : null,
         r.src === 'usage' ? [r.session ? '세션 ' + r.session : null, r.app].filter(Boolean).join(' · ') : null,
         r.src === 'crash' ? [(r.detail || '').trim().replace(/^at\s+/, '').replace('com.ilgam.radar.', ''), r.app].filter(Boolean).join(' · ') : null,
       ].filter(Boolean).join('')) },
